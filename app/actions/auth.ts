@@ -11,18 +11,24 @@ export async function signup(formData: FormData) {
   const displayName = formData.get("displayName") as string;
   const next = (formData.get("next") as string) || "/dashboard";
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         display_name: displayName,
       },
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || ""}/auth/callback?next=${encodeURIComponent(next)}`,
     },
   });
 
   if (error) {
     return { error: error.message };
+  }
+
+  // If email confirmation is required, the session will be null
+  if (!data.session) {
+    return { needsConfirmation: true };
   }
 
   redirect(next);

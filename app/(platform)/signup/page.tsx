@@ -29,16 +29,43 @@ function SignupForm() {
   const next = searchParams.get("next") || "/dashboard";
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [email, setEmail] = useState("");
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
     setError(null);
     formData.set("next", next);
+    setEmail(formData.get("email") as string);
     const result = await signup(formData);
     if (result?.error) {
       setError(result.error);
       setPending(false);
+    } else if (result?.needsConfirmation) {
+      setNeedsConfirmation(true);
+      setPending(false);
     }
+  }
+
+  if (needsConfirmation) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <Card className="w-full max-w-md text-center">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold">Check your email</CardTitle>
+            <CardDescription>
+              We sent a confirmation link to <strong>{email}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Click the link in the email to verify your account, then you&apos;ll
+              be redirected automatically.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
