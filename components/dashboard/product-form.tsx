@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { createProduct } from "@/app/actions/products";
 import { categorizeProduct, getCategoryList } from "@/lib/printful-categories";
 import { MockupPreview } from "./mockup-preview";
+import { createClient } from "@/lib/supabase/client";
 
 interface CatalogProduct {
   id: number;
@@ -55,6 +56,8 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [designUrl, setDesignUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [designFileName, setDesignFileName] = useState<string | null>(null);
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [productPrices, setProductPrices] = useState<Record<number, { min: number; max: number }>>({});
 
@@ -357,24 +360,127 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
         <CardHeader>
           <CardTitle>Design</CardTitle>
           <CardDescription>
-            Upload your logo or design file URL
+            Upload your logo or design image
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="designFileUrl">Design File URL</Label>
-            <Input
-              id="designFileUrl"
-              name="designFileUrl"
-              type="url"
-              placeholder="https://example.com/design.png"
-              value={designUrl}
-              onChange={(e) => setDesignUrl(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Provide a direct URL to your design file (PNG, JPG, or SVG)
-            </p>
-          </div>
+        <CardContent className="space-y-4">
+          {designUrl ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-4">
+                <img
+                  src={designUrl}
+                  alt="Design preview"
+                  className="h-24 w-24 rounded-md border object-contain bg-muted p-1"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {designFileName || "Design uploaded"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate mt-1">
+                    {designUrl}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => {
+                      setDesignUrl("");
+                      setDesignFileName(null);
+                    }}
+                  >
+                    Remove & upload new
+                  </Button>
+                </div>
+              </div>
+              <input type="hidden" name="designFileUrl" value={designUrl} />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="designUpload">Upload Image</Label>
+                <Input
+                  id="designUpload"
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                  disabled={uploading}
+                  className="mt-1"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    // Validate file size (max 20MB)
+                    if (file.size > 20 * 1024 * 1024) {
+                      setError("File size must be under 20MB");
+                      return;
+                    }
+
+                    setUploading(true);
+                    setError(null);
+
+                    try {
+                      const supabase = createClient();
+                      const ext = file.name.split(".").pop() || "png";
+                      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+                      const filePath = `${storeId}/${fileName}`;
+
+                      const { error: uploadError } = await supabase.storage
+                        .from("designs")
+                        .upload(filePath, file, {
+                          contentType: file.type,
+                          upsert: false,
+                        });
+
+                      if (uploadError) {
+                        setError(`Upload failed: ${uploadError.message}`);
+                        setUploading(false);
+                        return;
+                      }
+
+                      const { data: urlData } = supabase.storage
+                        .from("designs")
+                        .getPublicUrl(filePath);
+
+                      setDesignUrl(urlData.publicUrl);
+                      setDesignFileName(file.name);
+                    } catch {
+                      setError("Failed to upload design file");
+                    }
+                    setUploading(false);
+                  }}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  PNG, JPG, SVG, or WebP — max 20MB
+                </p>
+              </div>
+
+              {uploading && (
+                <p className="text-sm text-muted-foreground">Uploading...</p>
+              )}
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    or paste a URL
+                  </span>
+                </div>
+              </div>
+
+              <Input
+                type="url"
+                placeholder="https://example.com/design.png"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setDesignUrl(e.target.value);
+                    setDesignFileName(null);
+                  }
+                }}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
