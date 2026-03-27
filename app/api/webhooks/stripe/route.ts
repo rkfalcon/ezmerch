@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { createOrderFromPayment } from "@/lib/orders";
 
 // Use service role client for webhook processing (bypasses RLS)
 function getAdminClient() {
@@ -65,7 +66,31 @@ export async function POST(request: Request) {
 
       if (existing) break; // Already processed
 
-      // Order creation will be handled in Unit 9
+      // Parse metadata from checkout
+      const metadata = paymentIntent.metadata;
+      const items = JSON.parse(metadata.items || "[]");
+      const shippingAddress = JSON.parse(metadata.shipping_address || "{}");
+
+      try {
+        await createOrderFromPayment({
+          storeId,
+          customerId: null, // Guest checkout — could look up by email
+          customerEmail: metadata.customer_email,
+          stripePaymentIntentId: paymentIntent.id,
+          subtotalCents: parseInt(metadata.subtotal_cents || "0", 10),
+          shippingCents: parseInt(metadata.shipping_cents || "0", 10),
+          taxCents: parseInt(metadata.tax_cents || "0", 10),
+          totalCents: paymentIntent.amount,
+          platformFeeCents: parseInt(metadata.platform_fee_cents || "0", 10),
+          shippingAddress,
+          items: items.map((i: { productId: string; variantKey: string; quantity: number; priceCents: number }) => ({
+            ...i,
+            printfulSyncVariantId: parseInt(i.variantKey, 10),
+          })),
+        });
+      } catch (err) {
+        console.error("Order creation failed:", err);
+      }
       break;
     }
 
