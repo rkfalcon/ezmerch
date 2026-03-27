@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,14 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createProduct } from "@/app/actions/products";
+import { categorizeProduct, getCategoryList } from "@/lib/printful-categories";
+
+interface CatalogProduct {
+  id: number;
+  title: string;
+  image: string;
+  category?: string;
+}
 
 interface Variant {
   variant_id: number;
@@ -36,9 +44,8 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
   const [pending, setPending] = useState(false);
 
   // Catalog selection state
-  const [catalogProducts, setCatalogProducts] = useState<
-    Array<{ id: number; title: string; image: string }>
-  >([]);
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<{
     id: number;
     title: string;
@@ -47,13 +54,49 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [loadingVariants, setLoadingVariants] = useState(false);
 
+  // Group products by category
+  const categorizedProducts = useMemo(() => {
+    const grouped: Record<string, CatalogProduct[]> = {};
+    for (const p of catalogProducts) {
+      const cat = p.category || "Other";
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(p);
+    }
+    return grouped;
+  }, [catalogProducts]);
+
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of catalogProducts) {
+      const cat = p.category || "Other";
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return counts;
+  }, [catalogProducts]);
+
+  // Sorted categories (by count descending, "Other" last)
+  const sortedCategories = useMemo(() => {
+    return getCategoryList()
+      .filter((cat) => categoryCounts[cat])
+      .sort((a, b) => {
+        if (a === "Other") return 1;
+        if (b === "Other") return -1;
+        return (categoryCounts[b] || 0) - (categoryCounts[a] || 0);
+      });
+  }, [categoryCounts]);
+
   async function loadCatalog() {
     setLoadingCatalog(true);
     try {
       const res = await fetch("/api/printful/catalog");
       const data = await res.json();
       if (Array.isArray(data)) {
-        setCatalogProducts(data.slice(0, 50)); // Show first 50
+        const withCategories = data.map((p: { id: number; title: string; image: string }) => ({
+          ...p,
+          category: categorizeProduct(p.title),
+        }));
+        setCatalogProducts(withCategories);
       }
     } catch {
       setError("Failed to load Printful catalog");
@@ -63,6 +106,7 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
 
   async function selectCatalogProduct(productId: number, title: string) {
     setSelectedProduct({ id: productId, title });
+    setSelectedCategory(null);
     setLoadingVariants(true);
     try {
       const res = await fetch(`/api/printful/catalog?productId=${productId}`);
@@ -102,7 +146,6 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
     setPending(true);
     setError(null);
 
-    // Validate prices exceed base cost
     const invalidVariants = variants.filter(
       (v) =>
         v.retail_price &&
@@ -173,34 +216,82 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
                 Change
               </Button>
             </div>
-          ) : (
+          ) : catalogProducts.length === 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={loadCatalog}
+              disabled={loadingCatalog}
+            >
+              {loadingCatalog
+                ? "Loading catalog..."
+                : "Browse Printful Catalog"}
+            </Button>
+          ) : selectedCategory ? (
+            /* Show products in selected category */
             <div>
-              {catalogProducts.length === 0 ? (
+              <div className="flex items-center gap-2 mb-4">
                 <Button
                   type="button"
-                  variant="outline"
-                  onClick={loadCatalog}
-                  disabled={loadingCatalog}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedCategory(null)}
                 >
-                  {loadingCatalog
-                    ? "Loading catalog..."
-                    : "Browse Printful Catalog"}
+                  &larr; Back to categories
                 </Button>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
-                  {catalogProducts.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => selectCatalogProduct(p.id, p.title)}
-                      className="rounded-md border p-3 text-left hover:bg-muted transition-colors"
-                    >
+                <h3 className="font-medium">{selectedCategory}</h3>
+                <Badge variant="secondary">
+                  {categorizedProducts[selectedCategory]?.length ?? 0} products
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+                {categorizedProducts[selectedCategory]?.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => selectCatalogProduct(p.id, p.title)}
+                    className="rounded-md border p-3 text-left hover:bg-muted transition-colors flex items-center gap-3"
+                  >
+                    {p.image ? (
+                      <img
+                        src={p.image}
+                        alt={p.title}
+                        className="h-12 w-12 rounded object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="h-12 w-12 rounded bg-muted flex items-center justify-center flex-shrink-0 text-xs text-muted-foreground">
+                        N/A
+                      </div>
+                    )}
+                    <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{p.title}</p>
                       <p className="text-xs text-muted-foreground">ID: {p.id}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Show category grid */
+            <div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Choose a product category
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {sortedCategories.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat)}
+                    className="rounded-md border p-4 text-left hover:bg-muted transition-colors"
+                  >
+                    <p className="font-medium text-sm">{cat}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {categoryCounts[cat]} product{categoryCounts[cat] !== 1 ? "s" : ""}
+                    </p>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>
