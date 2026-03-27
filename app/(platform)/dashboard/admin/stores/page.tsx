@@ -16,9 +16,10 @@ export default async function AdminStoresPage() {
   await requireAdmin();
   const supabase = await createClient();
 
+  // Join with profiles to get the claiming user's display name
   const { data: stores } = await supabase
     .from("stores")
-    .select("*")
+    .select("*, profiles(display_name)")
     .order("created_at", { ascending: false });
 
   return (
@@ -40,6 +41,8 @@ export default async function AdminStoresPage() {
               <TableHead>Name</TableHead>
               <TableHead>Slug</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Claimed By</TableHead>
+              <TableHead>Claimed At</TableHead>
               <TableHead>Shipping</TableHead>
               <TableHead>Created</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -47,42 +50,71 @@ export default async function AdminStoresPage() {
           </TableHeader>
           <TableBody>
             {stores && stores.length > 0 ? (
-              stores.map((store) => (
-                <TableRow key={store.id}>
-                  <TableCell className="font-medium">{store.name}</TableCell>
-                  <TableCell className="font-mono text-sm">
-                    /{store.slug}
-                  </TableCell>
-                  <TableCell>
-                    {store.claimed ? (
-                      <Badge variant="default">Claimed</Badge>
-                    ) : (
-                      <Badge variant="secondary">Unclaimed</Badge>
-                    )}
-                    {store.stripe_account_id && (
-                      <Badge variant="outline" className="ml-1">
-                        Stripe
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="capitalize">
-                    {store.shipping_policy?.replace("_", " ")}
-                  </TableCell>
-                  <TableCell>
-                    {new Date(store.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Link href={`/dashboard/admin/stores/${store.id}`}>
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
-                    </Link>
-                  </TableCell>
-                </TableRow>
-              ))
+              stores.map((store) => {
+                const profile = store.profiles as { display_name: string } | null;
+                return (
+                  <TableRow key={store.id}>
+                    <TableCell className="font-medium">{store.name}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      /{store.slug}
+                    </TableCell>
+                    <TableCell>
+                      {store.claimed ? (
+                        <Badge variant="default">Claimed</Badge>
+                      ) : (
+                        <Badge variant="secondary">Unclaimed</Badge>
+                      )}
+                      {store.stripe_account_id && (
+                        <Badge variant="outline" className="ml-1">
+                          Stripe
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {store.claimed && profile?.display_name ? (
+                        <span className="text-sm">{profile.display_name}</span>
+                      ) : store.claimed && store.owner_id ? (
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {store.owner_id.slice(0, 8)}...
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {store.claimed_at ? (
+                        <span className="text-sm">
+                          {new Date(store.claimed_at).toLocaleDateString()}{" "}
+                          <span className="text-muted-foreground">
+                            {new Date(store.claimed_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="capitalize">
+                      {store.shipping_policy?.replace("_", " ")}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(store.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Link href={`/dashboard/admin/stores/${store.id}`}>
+                        <Button variant="ghost" size="sm">
+                          Edit
+                        </Button>
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   No stores yet. Create your first store to get started.
                 </TableCell>
               </TableRow>
