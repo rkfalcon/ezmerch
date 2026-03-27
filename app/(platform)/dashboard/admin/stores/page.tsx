@@ -16,11 +16,26 @@ export default async function AdminStoresPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  // Join with profiles to get the claiming user's display name
   const { data: stores } = await supabase
     .from("stores")
-    .select("*, profiles(display_name)")
+    .select("*")
     .order("created_at", { ascending: false });
+
+  // Fetch display names for claimed stores
+  const ownerIds = stores
+    ?.filter((s) => s.owner_id)
+    .map((s) => s.owner_id) ?? [];
+
+  const ownerProfiles: Record<string, string> = {};
+  if (ownerIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", ownerIds);
+    profiles?.forEach((p) => {
+      if (p.display_name) ownerProfiles[p.id] = p.display_name;
+    });
+  }
 
   return (
     <div>
@@ -51,7 +66,7 @@ export default async function AdminStoresPage() {
           <TableBody>
             {stores && stores.length > 0 ? (
               stores.map((store) => {
-                const profile = store.profiles as { display_name: string } | null;
+                const ownerName = store.owner_id ? ownerProfiles[store.owner_id] : null;
                 return (
                   <TableRow key={store.id}>
                     <TableCell className="font-medium">{store.name}</TableCell>
@@ -71,8 +86,8 @@ export default async function AdminStoresPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {store.claimed && profile?.display_name ? (
-                        <span className="text-sm">{profile.display_name}</span>
+                      {store.claimed && ownerName ? (
+                        <span className="text-sm">{ownerName}</span>
                       ) : store.claimed && store.owner_id ? (
                         <span className="text-xs text-muted-foreground font-mono">
                           {store.owner_id.slice(0, 8)}...
