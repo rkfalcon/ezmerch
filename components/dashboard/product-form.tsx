@@ -53,6 +53,8 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [loadingVariants, setLoadingVariants] = useState(false);
+  const [loadingPrices, setLoadingPrices] = useState(false);
+  const [productPrices, setProductPrices] = useState<Record<number, { min: number; max: number }>>({});
 
   // Group products by category
   const categorizedProducts = useMemo(() => {
@@ -103,6 +105,41 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
     }
     setLoadingCatalog(false);
   }
+
+  async function selectCategory(category: string) {
+    setSelectedCategory(category);
+    // Fetch prices for products in this category
+    const products = categorizedProducts[category];
+    if (!products) return;
+    const idsToFetch = products
+      .map((p) => p.id)
+      .filter((id) => !productPrices[id]);
+    if (idsToFetch.length > 0) {
+      setLoadingPrices(true);
+      try {
+        const res = await fetch("/api/printful/catalog/prices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productIds: idsToFetch }),
+        });
+        const prices = await res.json();
+        setProductPrices((prev) => ({ ...prev, ...prices }));
+      } catch {
+        // Prices are optional — continue without them
+      }
+      setLoadingPrices(false);
+    }
+  }
+
+  // Products in selected category sorted by min price
+  const sortedCategoryProducts = useMemo(() => {
+    if (!selectedCategory || !categorizedProducts[selectedCategory]) return [];
+    return [...categorizedProducts[selectedCategory]].sort((a, b) => {
+      const priceA = productPrices[a.id]?.min ?? Infinity;
+      const priceB = productPrices[b.id]?.min ?? Infinity;
+      return priceA - priceB;
+    });
+  }, [selectedCategory, categorizedProducts, productPrices]);
 
   async function selectCatalogProduct(productId: number, title: string) {
     setSelectedProduct({ id: productId, title });
@@ -244,31 +281,47 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
                   {categorizedProducts[selectedCategory]?.length ?? 0} products
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-                {categorizedProducts[selectedCategory]?.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => selectCatalogProduct(p.id, p.title)}
-                    className="rounded-md border p-3 text-left hover:bg-muted transition-colors flex items-center gap-3"
-                  >
-                    {p.image ? (
-                      <img
-                        src={p.image}
-                        alt={p.title}
-                        className="h-12 w-12 rounded object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="h-12 w-12 rounded bg-muted flex items-center justify-center flex-shrink-0 text-xs text-muted-foreground">
-                        N/A
+              {loadingPrices && (
+                <p className="text-sm text-muted-foreground mb-3">Loading prices...</p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto">
+                {sortedCategoryProducts.map((p) => {
+                  const price = productPrices[p.id];
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => selectCatalogProduct(p.id, p.title)}
+                      className="rounded-md border p-3 text-left hover:bg-muted transition-colors flex items-center gap-3"
+                    >
+                      {p.image ? (
+                        <img
+                          src={p.image}
+                          alt={p.title}
+                          className="h-12 w-12 rounded object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded bg-muted flex items-center justify-center flex-shrink-0 text-xs text-muted-foreground">
+                          N/A
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{p.title}</p>
+                        {price ? (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {price.min === price.max
+                              ? `$${price.min.toFixed(2)}`
+                              : `$${price.min.toFixed(2)} – $${price.max.toFixed(2)}`}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {loadingPrices ? "..." : "Price varies"}
+                          </p>
+                        )}
                       </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{p.title}</p>
-                      <p className="text-xs text-muted-foreground">ID: {p.id}</p>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -282,7 +335,7 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
                   <button
                     key={cat}
                     type="button"
-                    onClick={() => setSelectedCategory(cat)}
+                    onClick={() => selectCategory(cat)}
                     className="rounded-md border p-4 text-left hover:bg-muted transition-colors"
                   >
                     <p className="font-medium text-sm">{cat}</p>
