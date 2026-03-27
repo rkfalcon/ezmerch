@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path' | { read -r FILE; [ -z \"$FILE\" ] || [ \"$FILE\" = \"null\" ] && exit 0; CD=$(git -C \"$(dirname \"$FILE\")\" rev-parse --show-toplevel 2>/dev/null) || exit 0; cd \"$CD\"; BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null); [ \"$BRANCH\" = \"main\" ] || [ \"$BRANCH\" = \"master\" ] && exit 0; REL=$(realpath --relative-to=\"$(pwd)\" \"$FILE\" 2>/dev/null || echo \"$FILE\"); git add \"$REL\"; git diff --cached --quiet && exit 0; EXT=\"${REL##*.}\"; case \"$EXT\" in md) PFX=\"docs\";; test.*|spec.*) PFX=\"test\";; json) PFX=\"chore\";; *) PFX=\"feat\";; esac; git commit -m \"${PFX}: update ${REL}\"; git push; } 2>/dev/null || true",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "afplay /System/Library/Sounds/Blow.aiff"
+          }
+        ]
+      }
+    ]
+  }
+}
