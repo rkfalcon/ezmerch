@@ -1,31 +1,59 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
-import {
-  getMockupTemplates,
-  getMockupPrintfiles,
-  createMockupTask,
-  getMockupTaskResult,
-} from "@/lib/printful";
 
-// GET: Fetch templates and printfiles for a product
+const PRINTFUL_API = "https://api.printful.com";
+const PRINTFUL_TOKEN = process.env.PRINTFUL_API_TOKEN!;
+
+async function printfulGet(endpoint: string) {
+  const res = await fetch(`${PRINTFUL_API}${endpoint}`, {
+    headers: { Authorization: `Bearer ${PRINTFUL_TOKEN}` },
+  });
+  if (!res.ok) throw new Error(`Printful API ${res.status}: ${await res.text()}`);
+  const json = await res.json();
+  return json.data ?? json.result ?? json;
+}
+
+async function printfulPost(endpoint: string, body: unknown) {
+  const res = await fetch(`${PRINTFUL_API}${endpoint}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${PRINTFUL_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Printful API ${res.status}: ${await res.text()}`);
+  const json = await res.json();
+  return json.data ?? json.result ?? json;
+}
+
+// GET: Fetch mockup styles, or poll for task result
 export async function GET(request: Request) {
   const user = await getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
   const productId = searchParams.get("productId");
+  const taskId = searchParams.get("taskId");
   const taskKey = searchParams.get("taskKey");
 
-  // Poll for task result
-  if (taskKey) {
+  // Poll v2 task
+  if (taskId) {
     try {
-      const result = await getMockupTaskResult(taskKey);
+      const result = await printfulGet(`/v2/mockup-tasks?id=${taskId}`);
       return NextResponse.json(result);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to get task result";
-      return NextResponse.json({ error: message }, { status: 500 });
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    }
+  }
+
+  // Poll legacy task
+  if (taskKey) {
+    try {
+      const result = await printfulGet(`/mockup-generator/task?task_key=${taskKey}`);
+      return NextResponse.json(result);
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 });
     }
   }
 
@@ -34,65 +62,86 @@ export async function GET(request: Request) {
   }
 
   try {
-    const [templates, printfiles] = await Promise.all([
-      getMockupTemplates(parseInt(productId, 10)),
-      getMockupPrintfiles(parseInt(productId, 10)),
+    // Fetch both mockup styles (v2) and printfiles (legacy, for dimensions)
+    const [styles, printfiles] = await Promise.all([
+      printfulGet(`/v2/catalog-products/${productId}/mockup-styles`),
+      printfulGet(`/mockup-generator/printfiles/${productId}`),
     ]);
 
-    return NextResponse.json({ templates, printfiles });
+    return NextResponse.json({ styles, printfiles });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to fetch mockup data";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
 }
 
 // POST: Create a mockup generation task
 export async function POST(request: Request) {
   const user = await getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { productId, variantIds, designUrl, placement, position } =
-    await request.json();
+  const body = await request.json();
+  const { productId, variantIds, designUrl, placement, position, styleIds, technique } = body;
 
   if (!productId || !designUrl) {
-    return NextResponse.json(
-      { error: "productId and designUrl required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "productId and designUrl required" }, { status: 400 });
   }
 
   try {
-    const file: {
-      placement: string;
-      image_url: string;
-      position?: {
-        area_width: number;
-        area_height: number;
-        width: number;
-        height: number;
-        top: number;
-        left: number;
-      };
+    // Use v2 API for mockup generation
+    const taskBody: {
+      format: string;
+      products: Array<{
+        source: string;
+        catalog_product_id: number;
+        catalog_variant_ids: number[];
+        mockup_style_ids?: number[];
+        placements: Array<{
+          placement: string;
+          technique: string;
+          layers: Array<{
+            type: string;
+            url: string;
+            position?: {
+              width: number;
+              height: number;
+              top: number;
+              left: number;
+            };
+          }>;
+        }>;
+      }>;
     } = {
-      placement: placement || "front",
-      image_url: designUrl,
+      format: "jpg",
+      products: [
+        {
+          source: "catalog",
+          catalog_product_id: productId,
+          catalog_variant_ids: variantIds?.slice(0, 5) || [],
+          placements: [
+            {
+              placement: placement || "front",
+              technique: technique || "dtg",
+              layers: [
+                {
+                  type: "file",
+                  url: designUrl,
+                  ...(position ? { position } : {}),
+                },
+              ],
+            },
+          ],
+        },
+      ],
     };
 
-    if (position) {
-      file.position = position;
+    // Add specific style IDs if provided
+    if (styleIds?.length > 0) {
+      taskBody.products[0].mockup_style_ids = styleIds;
     }
 
-    const result = await createMockupTask(productId, {
-      variant_ids: variantIds || [],
-      format: "jpg",
-      files: [file],
-    });
-
+    const result = await printfulPost("/v2/mockup-tasks", taskBody);
     return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to create mockup task";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
 }
