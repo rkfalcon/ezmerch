@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signup } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -16,12 +17,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
+  );
+}
+
+function SignupForm() {
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") || "/dashboard";
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
     setError(null);
+    formData.set("next", next);
     const result = await signup(formData);
     if (result?.error) {
       setError(result.error);
@@ -34,9 +46,7 @@ export default function SignupPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-          <CardDescription>
-            Get started with EZMerch
-          </CardDescription>
+          <CardDescription>Get started with EZMerch</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={handleSubmit} className="space-y-4">
@@ -84,7 +94,10 @@ export default function SignupPage() {
         <CardFooter className="justify-center">
           <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login" className="text-primary underline">
+            <Link
+              href={`/login${next !== "/dashboard" ? `?next=${encodeURIComponent(next)}` : ""}`}
+              className="text-primary underline"
+            >
               Sign in
             </Link>
           </p>
