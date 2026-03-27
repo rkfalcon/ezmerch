@@ -17,17 +17,39 @@ export async function getUserWithRole() {
 
   if (!user) return null;
 
-  const { data: roles } = await supabase
+  // Try reading roles via RLS
+  const { data: roles, error } = await supabase
     .from("user_roles")
     .select("role, store_id")
     .eq("user_id", user.id);
 
+  // If RLS query succeeded and returned results, use them
+  if (!error && roles && roles.length > 0) {
+    return {
+      ...user,
+      roles,
+      isAdmin: roles.some((r) => r.role === "admin"),
+      isStoreOwner: roles.some((r) => r.role === "store_owner"),
+      storeId: roles.find((r) => r.role === "store_owner")?.store_id ?? null,
+    };
+  }
+
+  // Fallback: check JWT claims from the custom access token hook
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const jwtRole = (session?.access_token
+    ? JSON.parse(atob(session.access_token.split(".")[1]))
+    : {}
+  ).user_role;
+
   return {
     ...user,
-    roles: roles ?? [],
-    isAdmin: roles?.some((r) => r.role === "admin") ?? false,
-    isStoreOwner: roles?.some((r) => r.role === "store_owner") ?? false,
-    storeId: roles?.find((r) => r.role === "store_owner")?.store_id ?? null,
+    roles: jwtRole ? [{ role: jwtRole, store_id: null }] : [],
+    isAdmin: jwtRole === "admin",
+    isStoreOwner: jwtRole === "store_owner",
+    storeId: null,
   };
 }
 
