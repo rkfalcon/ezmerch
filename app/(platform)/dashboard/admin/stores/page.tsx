@@ -21,21 +21,7 @@ export default async function AdminStoresPage() {
     .select("*")
     .order("created_at", { ascending: false });
 
-  // Fetch display names for claimed stores
-  const ownerIds = stores
-    ?.filter((s) => s.owner_id)
-    .map((s) => s.owner_id) ?? [];
-
-  const ownerProfiles: Record<string, string> = {};
-  if (ownerIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, display_name")
-      .in("id", ownerIds);
-    profiles?.forEach((p) => {
-      if (p.display_name) ownerProfiles[p.id] = p.display_name;
-    });
-  }
+  // owner_email is stored directly on the stores table
 
   return (
     <div>
@@ -66,7 +52,6 @@ export default async function AdminStoresPage() {
           <TableBody>
             {stores && stores.length > 0 ? (
               stores.map((store) => {
-                const ownerName = store.owner_id ? ownerProfiles[store.owner_id] : null;
                 return (
                   <TableRow key={store.id}>
                     <TableCell className="font-medium">{store.name}</TableCell>
@@ -86,12 +71,8 @@ export default async function AdminStoresPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {store.claimed && ownerName ? (
-                        <span className="text-sm">{ownerName}</span>
-                      ) : store.claimed && store.owner_id ? (
-                        <span className="text-xs text-muted-foreground font-mono">
-                          {store.owner_id.slice(0, 8)}...
-                        </span>
+                      {store.owner_email ? (
+                        <span className="text-sm">{store.owner_email}</span>
                       ) : (
                         <span className="text-sm text-muted-foreground">—</span>
                       )}
