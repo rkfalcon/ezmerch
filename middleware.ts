@@ -6,7 +6,16 @@ export async function middleware(request: NextRequest) {
   // First, refresh the session
   const response = await updateSession(request);
 
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
+
+  // Intercept email confirmation codes landing on the root URL
+  // Supabase sends users to Site URL with ?code=... after email confirmation
+  if (pathname === "/" && (searchParams.has("code") || searchParams.has("token_hash"))) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/callback";
+    // Preserve all query params (code, next, token_hash, type)
+    return NextResponse.redirect(url);
+  }
 
   // Protect dashboard routes — redirect to login if not authenticated
   if (pathname.startsWith("/dashboard")) {

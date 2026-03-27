@@ -17,6 +17,7 @@ export async function signup(formData: FormData) {
     options: {
       data: {
         display_name: displayName,
+        pending_redirect: next !== "/dashboard" ? next : undefined,
       },
       emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || ""}/auth/callback?next=${encodeURIComponent(next)}`,
     },
