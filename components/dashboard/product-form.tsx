@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { createProduct } from "@/app/actions/products";
 import { categorizeProduct, getCategoryList } from "@/lib/printful-categories";
+import { MockupPreview } from "./mockup-preview";
 
 interface CatalogProduct {
   id: number;
@@ -53,6 +54,7 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [loadingVariants, setLoadingVariants] = useState(false);
+  const [designUrl, setDesignUrl] = useState("");
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [productPrices, setProductPrices] = useState<Record<number, { min: number; max: number }>>({});
 
@@ -366,6 +368,8 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
               name="designFileUrl"
               type="url"
               placeholder="https://example.com/design.png"
+              value={designUrl}
+              onChange={(e) => setDesignUrl(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
               Provide a direct URL to your design file (PNG, JPG, or SVG)
@@ -374,7 +378,16 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
         </CardContent>
       </Card>
 
-      {/* Section 3: Product Details */}
+      {/* Section 3: Mockup Preview */}
+      {selectedProduct && (
+        <MockupPreview
+          productId={selectedProduct.id}
+          designUrl={designUrl}
+          variantIds={variants.map((v) => v.variant_id)}
+        />
+      )}
+
+      {/* Section 4: Product Details */}
       <Card>
         <CardHeader>
           <CardTitle>Product Details</CardTitle>

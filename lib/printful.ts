@@ -71,6 +71,124 @@ async function printfulFetch<T>(
   }
 }
 
+// V2 API helper (different path prefix)
+async function printfulFetchV2<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  await rateLimiter.acquire();
+
+  try {
+    const response = await fetch(`${PRINTFUL_API}/v2${endpoint}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${PRINTFUL_TOKEN}`,
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(
+        `Printful API v2 error ${response.status}: ${errorBody}`
+      );
+    }
+
+    const json = await response.json();
+    return json.data ?? json.result ?? json;
+  } finally {
+    rateLimiter.release();
+  }
+}
+
+// ============================================================
+// Mockup Generator v2
+// ============================================================
+
+export interface MockupTemplate {
+  template_id: number;
+  image_url: string;
+  background_url: string;
+  background_color: string | null;
+  printfile_id: number;
+  template_width: number;
+  template_height: number;
+  print_area_width: number;
+  print_area_height: number;
+  print_area_top: number;
+  print_area_left: number;
+  is_template_on_front: boolean;
+  orientation: string;
+}
+
+export interface MockupPrintfile {
+  printfile_id: number;
+  width: number;
+  height: number;
+  dpi: number;
+  fill_mode: string;
+  can_rotate: boolean;
+}
+
+export interface MockupTaskResult {
+  task_key: string;
+  status: string;
+  mockups?: Array<{
+    placement: string;
+    variant_ids: number[];
+    mockup_url: string;
+    extra: Array<{
+      title: string;
+      url: string;
+    }>;
+  }>;
+  error?: string;
+}
+
+export async function getMockupTemplates(
+  productId: number
+): Promise<{ variant_mapping: Array<{ variant_id: number; templates: MockupTemplate[] }>; templates: MockupTemplate[] }> {
+  return printfulFetchV2(`/mockup-generator/templates/${productId}`);
+}
+
+export async function getMockupPrintfiles(
+  productId: number
+): Promise<{ available_placements: Record<string, { printfiles: MockupPrintfile[] }> }> {
+  return printfulFetchV2(`/mockup-generator/printfiles/${productId}`);
+}
+
+export async function createMockupTask(
+  productId: number,
+  data: {
+    variant_ids: number[];
+    format: string;
+    files: Array<{
+      placement: string;
+      image_url: string;
+      position?: {
+        area_width: number;
+        area_height: number;
+        width: number;
+        height: number;
+        top: number;
+        left: number;
+      };
+    }>;
+  }
+): Promise<{ task_key: string }> {
+  return printfulFetchV2(`/mockup-generator/create-task/${productId}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getMockupTaskResult(
+  taskKey: string
+): Promise<MockupTaskResult> {
+  return printfulFetchV2(`/mockup-generator/task?task_key=${taskKey}`);
+}
+
 // ============================================================
 // Catalog
 // ============================================================
