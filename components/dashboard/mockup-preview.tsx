@@ -236,7 +236,14 @@ export function MockupPreview({
         }
 
         if (result.status === "failed") {
-          setError(result.error || "Mockup generation failed");
+          const errMsg = result.error || "Mockup generation failed";
+          if (errMsg.includes("Internal Server Error")) {
+            setError(
+              "Printful could not process this image. Make sure your design is at least 300 DPI and meets the minimum dimensions for the print area (typically 1800x2400 px for T-shirts). Try uploading a higher resolution image."
+            );
+          } else {
+            setError(errMsg);
+          }
           setGenerating(false);
           return;
         }

@@ -450,7 +450,8 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
                   }}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  PNG, JPG, SVG, or WebP — max 20MB
+                  PNG, JPG, SVG, or WebP — max 20MB. For best mockup results,
+                  use high-resolution images (at least 1800x2400 px / 300 DPI).
                 </p>
               </div>
 
