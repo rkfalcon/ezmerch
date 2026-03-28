@@ -3,10 +3,14 @@ import { getUser } from "@/lib/auth";
 
 const PRINTFUL_API = "https://api.printful.com";
 const PRINTFUL_TOKEN = process.env.PRINTFUL_API_TOKEN!;
+const PRINTFUL_STORE_ID = process.env.PRINTFUL_STORE_ID!;
 
 async function printfulGet(endpoint: string) {
   const res = await fetch(`${PRINTFUL_API}${endpoint}`, {
-    headers: { Authorization: `Bearer ${PRINTFUL_TOKEN}` },
+    headers: {
+      Authorization: `Bearer ${PRINTFUL_TOKEN}`,
+      "X-PF-Store-Id": PRINTFUL_STORE_ID,
+    },
   });
   if (!res.ok) throw new Error(`Printful API ${res.status}: ${await res.text()}`);
   const json = await res.json();
@@ -19,6 +23,7 @@ async function printfulPost(endpoint: string, body: unknown) {
     headers: {
       Authorization: `Bearer ${PRINTFUL_TOKEN}`,
       "Content-Type": "application/json",
+      "X-PF-Store-Id": PRINTFUL_STORE_ID,
     },
     body: JSON.stringify(body),
   });

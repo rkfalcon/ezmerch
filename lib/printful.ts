@@ -10,6 +10,7 @@ import type {
 
 const PRINTFUL_API = "https://api.printful.com";
 const PRINTFUL_TOKEN = process.env.PRINTFUL_API_TOKEN!;
+const PRINTFUL_STORE_ID = process.env.PRINTFUL_STORE_ID!;
 
 class PrintfulRateLimiter {
   private queue: Array<() => void> = [];
@@ -53,6 +54,7 @@ async function printfulFetch<T>(
       headers: {
         Authorization: `Bearer ${PRINTFUL_TOKEN}`,
         "Content-Type": "application/json",
+        "X-PF-Store-Id": PRINTFUL_STORE_ID,
         ...options.headers,
       },
     });
@@ -84,6 +86,7 @@ async function printfulFetchV2<T>(
       headers: {
         Authorization: `Bearer ${PRINTFUL_TOKEN}`,
         "Content-Type": "application/json",
+        "X-PF-Store-Id": PRINTFUL_STORE_ID,
         ...options.headers,
       },
     });
