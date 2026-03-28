@@ -169,19 +169,6 @@ export function MockupPreview({
         return;
       }
 
-      // Calculate position based on scale (centered)
-      const areaW = placement.print_area_width;
-      const areaH = placement.print_area_height;
-      const scale = designScale / 100;
-      const designW = areaW * scale;
-      const designH = areaH * scale;
-      const position = {
-        width: parseFloat(designW.toFixed(2)),
-        height: parseFloat(designH.toFixed(2)),
-        top: parseFloat(((areaH - designH) / 2).toFixed(2)),
-        left: parseFloat(((areaW - designW) / 2).toFixed(2)),
-      };
-
       const res = await fetch("/api/printful/mockups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -191,7 +178,7 @@ export function MockupPreview({
           designUrl,
           placement: selectedPlacement,
           technique: placement.technique || "dtg",
-          position,
+          position: { scale: designScale / 100 },
           styleIds: selectedStyleIds.length > 0 ? selectedStyleIds : undefined,
         }),
       });
@@ -203,70 +190,61 @@ export function MockupPreview({
         return;
       }
 
-      // Poll for result — handle both v2 (id) and legacy (task_key) responses
-      const taskId = taskData.id;
+      // Poll for result
       const taskKey = taskData.task_key;
+      if (!taskKey) {
+        setError("No task key returned from Printful");
+        setGenerating(false);
+        return;
+      }
+
       let attempts = 0;
 
       const poll = async () => {
         attempts++;
-        if (attempts > 30) {
+        if (attempts > 20) {
           setError("Mockup generation timed out. Try again.");
           setGenerating(false);
           return;
         }
 
-        const param = taskId
-          ? `taskId=${taskId}`
-          : `taskKey=${taskKey}`;
-        const resultRes = await fetch(`/api/printful/mockups?${param}`);
+        const resultRes = await fetch(`/api/printful/mockups?taskKey=${taskKey}`);
         const result = await resultRes.json();
 
-        // Handle v2 response
-        if (Array.isArray(result) && result.length > 0) {
-          const task = result[0];
-          if (task.status === "completed" && task.catalog_variant_mockups) {
-            const allMockups: GeneratedMockup[] = [];
-            for (const vm of task.catalog_variant_mockups) {
-              for (const m of vm.mockups || []) {
-                // Deduplicate by URL
-                if (!allMockups.find((existing) => existing.mockup_url === m.mockup_url)) {
-                  allMockups.push({
-                    placement: m.placement,
-                    mockup_url: m.mockup_url,
-                    style_id: m.style_id,
-                    display_name: m.display_name,
-                  });
-                }
+        if (result.status === "completed" && result.mockups) {
+          const allMockups: GeneratedMockup[] = [];
+          for (const m of result.mockups) {
+            allMockups.push({
+              placement: m.placement,
+              mockup_url: m.mockup_url,
+              variant_ids: m.variant_ids,
+            });
+            // Add extra views
+            if (m.extra) {
+              for (const extra of m.extra) {
+                allMockups.push({
+                  placement: extra.option || m.placement,
+                  mockup_url: extra.url,
+                  display_name: extra.title,
+                });
               }
             }
-            setMockups(allMockups);
-            setGenerating(false);
-            return;
           }
-          if (task.status === "failed") {
-            setError(task.failure_reasons?.join(", ") || "Mockup generation failed");
-            setGenerating(false);
-            return;
-          }
-        }
-
-        // Handle legacy response
-        if (result.status === "completed" && result.mockups) {
-          setMockups(result.mockups);
+          setMockups(allMockups);
           setGenerating(false);
           return;
         }
+
         if (result.status === "failed") {
           setError(result.error || "Mockup generation failed");
           setGenerating(false);
           return;
         }
 
-        setTimeout(poll, 2000);
+        setTimeout(poll, 3000);
       };
 
-      setTimeout(poll, 3000);
+      setTimeout(poll, 4000);
     } catch {
       setError("Failed to generate mockup");
       setGenerating(false);

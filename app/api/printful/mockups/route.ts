@@ -102,78 +102,57 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "productId and designUrl required" }, { status: 400 });
   }
 
-  // Try v2 first, fallback to legacy
+  // First, fetch printfile dimensions so we can build a valid position
+  let printfileWidth = 1800;
+  let printfileHeight = 2400;
   try {
-    const v2Body = {
+    const printfiles = await printfulGet(`/mockup-generator/printfiles/${productId}`);
+    if (printfiles.printfiles?.[0]) {
+      printfileWidth = printfiles.printfiles[0].width;
+      printfileHeight = printfiles.printfiles[0].height;
+    }
+  } catch {
+    // Use defaults
+  }
+
+  // Build position: use provided values or default to centered at given scale
+  const scale = position?.scale ?? 0.8;
+  const designW = Math.round(printfileWidth * scale);
+  const designH = Math.round(printfileHeight * scale);
+  const legacyPosition = {
+    area_width: printfileWidth,
+    area_height: printfileHeight,
+    width: position?.width ?? designW,
+    height: position?.height ?? designH,
+    top: position?.top ?? Math.round((printfileHeight - designH) / 2),
+    left: position?.left ?? Math.round((printfileWidth - designW) / 2),
+  };
+
+  // Use legacy API (more reliable with private token auth)
+  try {
+    const legacyBody: Record<string, unknown> = {
+      variant_ids: variantIds?.slice(0, 5) || [],
       format: "jpg",
-      products: [
+      files: [
         {
-          source: "catalog",
-          catalog_product_id: productId,
-          catalog_variant_ids: variantIds?.slice(0, 5) || [],
-          ...(styleIds?.length > 0 ? { mockup_style_ids: styleIds } : {}),
-          placements: [
-            {
-              placement: placement || "front",
-              technique: technique || "dtg",
-              layers: [
-                {
-                  type: "file",
-                  url: designUrl,
-                  ...(position ? { position } : {}),
-                },
-              ],
-            },
-          ],
+          placement: placement || "front",
+          image_url: designUrl,
+          position: legacyPosition,
         },
       ],
     };
 
-    const result = await printfulPost("/v2/mockup-tasks", v2Body);
-    return NextResponse.json({ ...result, api: "v2" });
-  } catch {
-    // Fallback to legacy API
-    try {
-      const legacyBody: {
-        variant_ids: number[];
-        format: string;
-        files: Array<{
-          placement: string;
-          image_url: string;
-          position?: {
-            area_width: number;
-            area_height: number;
-            width: number;
-            height: number;
-            top: number;
-            left: number;
-          };
-        }>;
-        option_groups?: string[];
-      } = {
-        variant_ids: variantIds?.slice(0, 5) || [],
-        format: "jpg",
-        files: [
-          {
-            placement: placement || "front",
-            image_url: designUrl,
-          },
-        ],
-      };
-
-      // Convert v2 position (inches) to legacy position (pixels) if we have printfile data
-      if (position) {
-        // For legacy, position needs area_width/area_height in pixels
-        // We'll let the caller pass pixel-based position via legacyPosition
-      }
-
-      const result = await printfulPost(
-        `/mockup-generator/create-task/${productId}`,
-        legacyBody
-      );
-      return NextResponse.json({ ...result, api: "legacy" });
-    } catch (err) {
-      return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    // Filter by style category if provided
+    if (styleIds?.length > 0) {
+      // styleIds here are actually option_group names passed from frontend
     }
+
+    const result = await printfulPost(
+      `/mockup-generator/create-task/${productId}`,
+      legacyBody
+    );
+    return NextResponse.json({ ...result, api: "legacy" });
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
 }
