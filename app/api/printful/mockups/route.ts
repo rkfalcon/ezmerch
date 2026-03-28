@@ -102,36 +102,51 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "productId and designUrl required" }, { status: 400 });
   }
 
-  // First, fetch printfile dimensions so we can build a valid position
-  let printfileWidth = 1800;
-  let printfileHeight = 2400;
   try {
-    const printfiles = await printfulGet(`/mockup-generator/printfiles/${productId}`);
-    if (printfiles.printfiles?.[0]) {
-      printfileWidth = printfiles.printfiles[0].width;
-      printfileHeight = printfiles.printfiles[0].height;
+    // Fetch printfile dimensions for proper position calculation
+    let printfileWidth = 1800;
+    let printfileHeight = 2400;
+    let firstVariantId: number | null = null;
+
+    try {
+      const printfileData = await printfulGet(`/mockup-generator/printfiles/${productId}`);
+      // printfulGet returns json.data ?? json.result, so printfileData is the result object
+      const pf = printfileData.printfiles ?? printfileData;
+      if (Array.isArray(pf) && pf[0]) {
+        printfileWidth = pf[0].width;
+        printfileHeight = pf[0].height;
+      }
+      // Get a valid variant ID if none provided
+      const variantPrintfiles = printfileData.variant_printfiles ?? [];
+      if (variantPrintfiles[0]) {
+        firstVariantId = variantPrintfiles[0].variant_id;
+      }
+    } catch {
+      // Use defaults
     }
-  } catch {
-    // Use defaults
-  }
 
-  // Build position: use provided values or default to centered at given scale
-  const scale = position?.scale ?? 0.8;
-  const designW = Math.round(printfileWidth * scale);
-  const designH = Math.round(printfileHeight * scale);
-  const legacyPosition = {
-    area_width: printfileWidth,
-    area_height: printfileHeight,
-    width: position?.width ?? designW,
-    height: position?.height ?? designH,
-    top: position?.top ?? Math.round((printfileHeight - designH) / 2),
-    left: position?.left ?? Math.round((printfileWidth - designW) / 2),
-  };
+    // Ensure we have at least one variant ID
+    const finalVariantIds = variantIds?.length > 0
+      ? variantIds.slice(0, 5)
+      : firstVariantId
+        ? [firstVariantId]
+        : [];
 
-  // Use legacy API (more reliable with private token auth)
-  try {
-    const legacyBody: Record<string, unknown> = {
-      variant_ids: variantIds?.slice(0, 5) || [],
+    // Build centered position at the given scale
+    const scale = position?.scale ?? 0.8;
+    const designW = Math.round(printfileWidth * scale);
+    const designH = Math.round(printfileHeight * scale);
+    const legacyPosition = {
+      area_width: printfileWidth,
+      area_height: printfileHeight,
+      width: designW,
+      height: designH,
+      top: Math.round((printfileHeight - designH) / 2),
+      left: Math.round((printfileWidth - designW) / 2),
+    };
+
+    const legacyBody = {
+      variant_ids: finalVariantIds,
       format: "jpg",
       files: [
         {
@@ -141,11 +156,6 @@ export async function POST(request: Request) {
         },
       ],
     };
-
-    // Filter by style category if provided
-    if (styleIds?.length > 0) {
-      // styleIds here are actually option_group names passed from frontend
-    }
 
     const result = await printfulPost(
       `/mockup-generator/create-task/${productId}`,
