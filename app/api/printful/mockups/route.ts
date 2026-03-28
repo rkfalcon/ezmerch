@@ -62,13 +62,24 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Fetch both mockup styles (v2) and printfiles (legacy, for dimensions)
-    const [styles, printfiles] = await Promise.all([
-      printfulGet(`/v2/catalog-products/${productId}/mockup-styles`),
-      printfulGet(`/mockup-generator/printfiles/${productId}`),
-    ]);
+    // Fetch printfiles (legacy API — reliable, gives dimensions)
+    const printfiles = await printfulGet(`/mockup-generator/printfiles/${productId}`);
 
-    return NextResponse.json({ styles, printfiles });
+    // Try v2 styles endpoint, fallback to legacy templates
+    let styles = null;
+    let templates = null;
+    try {
+      styles = await printfulGet(`/v2/catalog-products/${productId}/mockup-styles`);
+    } catch {
+      // v2 not available for this product — try legacy templates
+      try {
+        templates = await printfulGet(`/mockup-generator/templates/${productId}`);
+      } catch {
+        // No templates available either
+      }
+    }
+
+    return NextResponse.json({ styles, templates, printfiles });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
@@ -86,37 +97,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "productId and designUrl required" }, { status: 400 });
   }
 
+  // Try v2 first, fallback to legacy
   try {
-    // Use v2 API for mockup generation
-    const taskBody: {
-      format: string;
-      products: Array<{
-        source: string;
-        catalog_product_id: number;
-        catalog_variant_ids: number[];
-        mockup_style_ids?: number[];
-        placements: Array<{
-          placement: string;
-          technique: string;
-          layers: Array<{
-            type: string;
-            url: string;
-            position?: {
-              width: number;
-              height: number;
-              top: number;
-              left: number;
-            };
-          }>;
-        }>;
-      }>;
-    } = {
+    const v2Body = {
       format: "jpg",
       products: [
         {
           source: "catalog",
           catalog_product_id: productId,
           catalog_variant_ids: variantIds?.slice(0, 5) || [],
+          ...(styleIds?.length > 0 ? { mockup_style_ids: styleIds } : {}),
           placements: [
             {
               placement: placement || "front",
@@ -134,14 +124,51 @@ export async function POST(request: Request) {
       ],
     };
 
-    // Add specific style IDs if provided
-    if (styleIds?.length > 0) {
-      taskBody.products[0].mockup_style_ids = styleIds;
-    }
+    const result = await printfulPost("/v2/mockup-tasks", v2Body);
+    return NextResponse.json({ ...result, api: "v2" });
+  } catch {
+    // Fallback to legacy API
+    try {
+      const legacyBody: {
+        variant_ids: number[];
+        format: string;
+        files: Array<{
+          placement: string;
+          image_url: string;
+          position?: {
+            area_width: number;
+            area_height: number;
+            width: number;
+            height: number;
+            top: number;
+            left: number;
+          };
+        }>;
+        option_groups?: string[];
+      } = {
+        variant_ids: variantIds?.slice(0, 5) || [],
+        format: "jpg",
+        files: [
+          {
+            placement: placement || "front",
+            image_url: designUrl,
+          },
+        ],
+      };
 
-    const result = await printfulPost("/v2/mockup-tasks", taskBody);
-    return NextResponse.json(result);
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+      // Convert v2 position (inches) to legacy position (pixels) if we have printfile data
+      if (position) {
+        // For legacy, position needs area_width/area_height in pixels
+        // We'll let the caller pass pixel-based position via legacyPosition
+      }
+
+      const result = await printfulPost(
+        `/mockup-generator/create-task/${productId}`,
+        legacyBody
+      );
+      return NextResponse.json({ ...result, api: "legacy" });
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    }
   }
 }

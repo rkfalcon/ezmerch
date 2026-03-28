@@ -66,21 +66,69 @@ export function MockupPreview({
   useEffect(() => {
     async function loadStyles() {
       setLoading(true);
+      setError(null);
       try {
         const res = await fetch(`/api/printful/mockups?productId=${productId}`);
         const data = await res.json();
 
+        if (data.error) {
+          setError(data.error);
+          setLoading(false);
+          return;
+        }
+
+        // Build placements from v2 styles or legacy printfiles
+        const placementList: PlacementInfo[] = [];
+
         if (data.styles && Array.isArray(data.styles)) {
-          setPlacements(data.styles);
-          // Default to first placement (usually "front")
-          if (data.styles.length > 0) {
-            const frontPlacement = data.styles.find(
-              (p: PlacementInfo) => p.placement === "front"
-            );
-            setSelectedPlacement(
-              frontPlacement?.placement || data.styles[0].placement
-            );
+          // v2 styles available
+          for (const s of data.styles) {
+            placementList.push({
+              placement: s.placement,
+              display_name: s.display_name || s.placement,
+              technique: s.technique || "dtg",
+              print_area_width: s.print_area_width || 12,
+              print_area_height: s.print_area_height || 16,
+              mockup_styles: s.mockup_styles || [],
+            });
           }
+        } else if (data.printfiles) {
+          // Fallback: build from legacy printfiles
+          const pf = data.printfiles;
+          const availPlacements = pf.available_placements || {};
+          const printfileList = pf.printfiles || [];
+
+          for (const [key, displayName] of Object.entries(availPlacements)) {
+            const printfile = printfileList[0]; // Use first printfile for dimensions
+            // Build styles from legacy templates if available
+            const legacyStyles: MockupStyle[] = [];
+            if (data.templates?.templates) {
+              for (const t of data.templates.templates) {
+                legacyStyles.push({
+                  id: t.template_id,
+                  category_name: t.option_group || "Default",
+                  view_name: t.option || key,
+                  restricted_to_variants: null,
+                });
+              }
+            }
+
+            placementList.push({
+              placement: key,
+              display_name: displayName as string,
+              technique: "dtg",
+              print_area_width: printfile ? printfile.width / printfile.dpi : 12,
+              print_area_height: printfile ? printfile.height / printfile.dpi : 16,
+              mockup_styles: legacyStyles,
+            });
+          }
+        }
+
+        setPlacements(placementList);
+
+        if (placementList.length > 0) {
+          const front = placementList.find((p) => p.placement === "front");
+          setSelectedPlacement(front?.placement || placementList[0].placement);
         }
       } catch {
         setError("Failed to load mockup options");
@@ -262,7 +310,7 @@ export function MockupPreview({
     );
   }
 
-  if (placements.length === 0) return null;
+  if (placements.length === 0 && !error) return null;
 
   return (
     <Card>
