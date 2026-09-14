@@ -1,7 +1,7 @@
 import { createAdminClient } from "../supabase/admin";
 import sharp from "sharp";
 import { renderArtwork } from "./artwork";
-import { groupPrintfiles, PrintfulClient } from "./printful";
+import { groupPrintfiles, PrintfulClient, PrintfulError } from "./printful";
 import { variantRetailPrice } from "./pricing";
 import type {
   GenerationJob,
@@ -284,19 +284,29 @@ export async function runLineupWorker(budgetMs = 40_000) {
     try {
       await advanceJob(db, client, job);
     } catch (error) {
-      const attempts = job.attempts + 1;
+      const rateLimited = error instanceof PrintfulError && error.status === 429;
+      const attempts = rateLimited ? job.attempts : job.attempts + 1;
+      const availableAt = new Date(Date.now() + (rateLimited
+        ? error.retryAfterMs
+        : Math.min(30 * 60_000, 60_000 * 2 ** attempts))).toISOString();
+      // While this job still owns the global lease, pause other ready jobs too.
+      // A provider-wide quota is not an individual product failure.
+      if (rateLimited) {
+        const { error: pauseError } = await db.from("product_generation_jobs")
+          .update({ available_at: availableAt })
+          .eq("status", "pending").lt("available_at", availableAt);
+        if (pauseError) throw pauseError;
+      }
       const message =
         error instanceof Error ? error.message : "Generation failed";
       const { error: saveError } = await db
         .from("product_generation_jobs")
         .update({
           state: job.state,
-          status: attempts >= 5 ? "failed" : "pending",
+          status: !rateLimited && attempts >= 5 ? "failed" : "pending",
           attempts,
           last_error: message.slice(0, 700),
-          available_at: new Date(
-            Date.now() + Math.min(30 * 60_000, 60_000 * 2 ** attempts),
-          ).toISOString(),
+          available_at: availableAt,
           lease_token: null,
           lease_until: null,
           updated_at: new Date().toISOString(),
@@ -304,6 +314,7 @@ export async function runLineupWorker(budgetMs = 40_000) {
         .eq("id", job.id)
         .eq("lease_token", job.lease_token);
       if (saveError) throw saveError;
+      if (rateLimited) break;
     }
     processed++;
   }

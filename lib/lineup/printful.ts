@@ -10,6 +10,7 @@ export class PrintfulError extends Error {
   constructor(
     public status: number,
     message: string,
+    public retryAfterMs = 65_000,
   ) {
     super(`Printful ${status}: ${message}`);
   }
@@ -52,6 +53,7 @@ export class PrintfulClient {
         String(
           json?.error?.message ?? json?.result ?? response.statusText,
         ).slice(0, 500),
+        Math.max(65_000, (Number(response.headers.get("retry-after")) || 0) * 1000 + 5000),
       );
     return (json?.result ?? json?.data) as T;
   }

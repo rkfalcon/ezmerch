@@ -1,6 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+test("Printful throttling preserves the provider cooldown", async () => {
+  const { PrintfulClient, PrintfulError } = await import("../lib/lineup/printful");
+  const client = new PrintfulClient(async () => Response.json(
+    { error: { message: "Too many requests" } },
+    { status: 429, headers: { "retry-after": "120" } },
+  ));
+  await assert.rejects(() => client.catalog(), (error: unknown) =>
+    error instanceof PrintfulError && error.status === 429 && error.retryAfterMs === 125_000);
+});
+
 test("print area is chosen by selected variant and placement rather than first printfile", async () => {
   const { groupPrintfiles } = await import("../lib/lineup/printful");
   const groups = groupPrintfiles(
