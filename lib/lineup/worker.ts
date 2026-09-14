@@ -216,31 +216,54 @@ export async function advanceJob(
     return;
   }
   const images = state.batches.flatMap((b) => b.images ?? []);
-  const sync = await client.ensureSyncProduct(`ezmerch-${job.id}`, {
-    sync_product: { name: template.title, thumbnail: images[0].url },
-    sync_variants: state.variants.map((v) => ({
-      variant_id: v.id,
-      retail_price: (
-        variantRetailPrice(
-          v.size,
-          template.retail_price_cents,
-          template.size_prices,
-        ) / 100
-      ).toFixed(2),
-      files: [
-        {
-          url: state.batches!.find((b) => b.variantIds.includes(v.id))!
-            .artworkUrl!,
-          type: template.placement,
-          ...(template.technique === "embroidery"
-            ? { options: [{ id: "auto_thread_color", value: true }] }
-            : {}),
-        },
-      ],
-    })),
-  });
+  const syncProducts = state.syncProducts ?? [];
+  const chunkIndex = syncProducts.length;
+  const chunk = state.variants.slice(chunkIndex * 100, (chunkIndex + 1) * 100);
+  if (chunk.length) {
+    // Printful caps a sync product at 100 variants. Each chunk gets a stable ID;
+    // all chunks still become one EZMerch product with catalog variant IDs intact.
+    const externalId = `ezmerch-${job.id}${chunkIndex ? `-${chunkIndex + 1}` : ""}`;
+    const sync = await client.ensureSyncProduct(externalId, {
+      sync_product: { name: template.title, thumbnail: images[0].url },
+      sync_variants: chunk.map((v) => ({
+        variant_id: v.id,
+        retail_price: (
+          variantRetailPrice(
+            v.size,
+            template.retail_price_cents,
+            template.size_prices,
+          ) / 100
+        ).toFixed(2),
+        files: [
+          {
+            url: state.batches!.find((b) => b.variantIds.includes(v.id))!
+              .artworkUrl!,
+            type: template.placement,
+            ...(template.technique === "embroidery"
+              ? { options: [{ id: "auto_thread_color", value: true }] }
+              : {}),
+          },
+        ],
+      })),
+    });
+    if (
+      chunk.some(
+        (v) =>
+          !sync.sync_variants.some(
+            (s) => s.variant_id === v.id && s.id && s.synced,
+          ),
+      )
+    )
+      throw new Error(
+        "Printful is still processing product files; retry shortly",
+      );
+    state.syncProducts = [...syncProducts, sync];
+    await saveStep(db, job, state);
+    return;
+  }
+  const syncedVariants = syncProducts.flatMap((s) => s.sync_variants);
   const variants: StoredVariant[] = state.variants.map((v) => {
-    const actual = sync.sync_variants.find((s) => s.variant_id === v.id);
+    const actual = syncedVariants.find((s) => s.variant_id === v.id);
     if (!actual?.id || !actual.synced)
       throw new Error(
         "Printful is still processing product files; retry shortly",
@@ -264,7 +287,7 @@ export async function advanceJob(
   const { error } = await db.rpc("complete_lineup_job", {
     p_job: job.id,
     p_lease: job.lease_token,
-    p_sync_id: sync.sync_product.id,
+    p_sync_id: syncProducts[0].sync_product.id,
     p_variants: variants,
     p_images: images,
   });
@@ -284,17 +307,23 @@ export async function runLineupWorker(budgetMs = 40_000) {
     try {
       await advanceJob(db, client, job);
     } catch (error) {
-      const rateLimited = error instanceof PrintfulError && error.status === 429;
+      const rateLimited =
+        error instanceof PrintfulError && error.status === 429;
       const attempts = rateLimited ? job.attempts : job.attempts + 1;
-      const availableAt = new Date(Date.now() + (rateLimited
-        ? error.retryAfterMs
-        : Math.min(30 * 60_000, 60_000 * 2 ** attempts))).toISOString();
+      const availableAt = new Date(
+        Date.now() +
+          (rateLimited
+            ? error.retryAfterMs
+            : Math.min(30 * 60_000, 60_000 * 2 ** attempts)),
+      ).toISOString();
       // While this job still owns the global lease, pause other ready jobs too.
       // A provider-wide quota is not an individual product failure.
       if (rateLimited) {
-        const { error: pauseError } = await db.from("product_generation_jobs")
+        const { error: pauseError } = await db
+          .from("product_generation_jobs")
           .update({ available_at: availableAt })
-          .eq("status", "pending").lt("available_at", availableAt);
+          .eq("status", "pending")
+          .lt("available_at", availableAt);
         if (pauseError) throw pauseError;
       }
       const message =

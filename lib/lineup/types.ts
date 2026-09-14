@@ -67,6 +67,10 @@ export interface GenerationState {
   variants?: CatalogVariant[];
   batches?: MockupBatch[];
   syncId?: number;
+  syncProducts?: {
+    sync_product: { id: number };
+    sync_variants: { id: number; variant_id: number; synced: boolean }[];
+  }[];
 }
 export interface GenerationJob {
   id: string;
