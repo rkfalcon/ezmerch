@@ -452,7 +452,7 @@ function TemplateEditor({
             </p>
           )}
           <div className="flex gap-2">
-            <Button disabled={busy || loading || !files}>
+            <Button type="submit" disabled={busy || loading || !files}>
               {busy ? "Saving…" : "Save template"}
             </Button>
             <Button type="button" variant="outline" onClick={onClose}>

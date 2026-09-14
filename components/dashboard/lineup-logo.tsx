@@ -125,7 +125,7 @@ export function LineupLogo({
               PNG, JPG, or WebP, up to 4 MB. Transparent PNG works best.
             </span>
           </label>
-          <Button disabled={busy}>
+          <Button type="submit" disabled={busy}>
             {busy ? "Working…" : "Upload logo & generate"}
           </Button>
         </form>
