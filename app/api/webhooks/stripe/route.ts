@@ -8,7 +8,7 @@ import { createOrderFromPayment } from "@/lib/orders";
 function getAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 }
 
@@ -26,13 +26,13 @@ export async function POST(request: Request) {
     event = stripe.webhooks.constructEvent(
       body,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      process.env.STRIPE_WEBHOOK_SECRET!,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
       { error: `Webhook signature verification failed: ${message}` },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -83,10 +83,19 @@ export async function POST(request: Request) {
           totalCents: paymentIntent.amount,
           platformFeeCents: parseInt(metadata.platform_fee_cents || "0", 10),
           shippingAddress,
-          items: items.map((i: { productId: string; variantKey: string; quantity: number; priceCents: number }) => ({
-            ...i,
-            printfulSyncVariantId: parseInt(i.variantKey, 10),
-          })),
+          items: items.map(
+            (i: {
+              productId: string;
+              variantKey: string;
+              quantity: number;
+              priceCents: number;
+              printfulSyncVariantId?: number;
+            }) => ({
+              ...i,
+              printfulSyncVariantId:
+                i.printfulSyncVariantId ?? parseInt(i.variantKey, 10),
+            }),
+          ),
         });
       } catch (err) {
         console.error("Order creation failed:", err);
@@ -96,9 +105,10 @@ export async function POST(request: Request) {
 
     case "charge.refunded": {
       const charge = event.data.object as Stripe.Charge;
-      const paymentIntentId = typeof charge.payment_intent === "string"
-        ? charge.payment_intent
-        : charge.payment_intent?.id;
+      const paymentIntentId =
+        typeof charge.payment_intent === "string"
+          ? charge.payment_intent
+          : charge.payment_intent?.id;
 
       if (paymentIntentId) {
         await supabase
@@ -111,9 +121,10 @@ export async function POST(request: Request) {
 
     case "charge.dispute.created": {
       const dispute = event.data.object as Stripe.Dispute;
-      const chargeId = typeof dispute.charge === "string"
-        ? dispute.charge
-        : dispute.charge?.id;
+      const chargeId =
+        typeof dispute.charge === "string"
+          ? dispute.charge
+          : dispute.charge?.id;
 
       // Log dispute — detailed handling in Unit 11
       console.log(`Dispute created for charge: ${chargeId}`);

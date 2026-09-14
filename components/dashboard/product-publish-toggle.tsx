@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { toggleProductPublished } from "@/app/actions/products";
 
@@ -16,15 +17,24 @@ export function ProductPublishToggle({
 
   async function handleToggle() {
     setPending(true);
-    const result = await toggleProductPublished(productId, !isPublished);
-    if (!result.error) {
-      setIsPublished(!isPublished);
+    try {
+      const result = await toggleProductPublished(productId, !isPublished);
+      if (result.error) toast.error(result.error);
+      else setIsPublished(!isPublished);
+    } catch {
+      toast.error("Could not update product visibility");
+    } finally {
+      setPending(false);
     }
-    setPending(false);
   }
 
   return (
-    <button onClick={handleToggle} disabled={pending} className="cursor-pointer">
+    <button
+      onClick={handleToggle}
+      disabled={pending}
+      aria-label={isPublished ? "Hide product" : "Publish product"}
+      className="cursor-pointer"
+    >
       <Badge variant={isPublished ? "default" : "secondary"}>
         {pending ? "..." : isPublished ? "Published" : "Draft"}
       </Badge>

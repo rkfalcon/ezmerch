@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProductPublishToggle } from "@/components/dashboard/product-publish-toggle";
+import { LineupProductPrice } from "@/components/dashboard/lineup-product-price";
 
 export default async function AdminStoreProductsPage({
   params,
@@ -42,7 +43,9 @@ export default async function AdminStoreProductsPage({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">Products: {store.name}</h1>
-          <p className="text-muted-foreground font-mono text-sm">/{store.slug}</p>
+          <p className="text-muted-foreground font-mono text-sm">
+            /{store.slug}
+          </p>
         </div>
         <Link href={`/dashboard/admin/stores/${storeId}/products/new`}>
           <Button>Add Product</Button>
@@ -68,7 +71,20 @@ export default async function AdminStoreProductsPage({
                 return (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">
+                      {product.thumbnail_url && (
+                        <img
+                          src={product.thumbnail_url}
+                          alt={product.title}
+                          className="h-20 w-20 object-contain rounded mb-2"
+                        />
+                      )}
                       {product.title}
+                      <div className="mt-2">
+                        <LineupProductPrice
+                          productId={product.id}
+                          variants={product.variants}
+                        />
+                      </div>
                     </TableCell>
                     <TableCell>{variantCount} variants</TableCell>
                     <TableCell>
@@ -85,7 +101,10 @@ export default async function AdminStoreProductsPage({
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                <TableCell
+                  colSpan={4}
+                  className="text-center py-8 text-muted-foreground"
+                >
                   No products yet.
                 </TableCell>
               </TableRow>

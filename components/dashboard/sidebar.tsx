@@ -24,11 +24,14 @@ interface UserWithRole {
 }
 
 const adminLinks = [
+  { href: "/dashboard/admin/templates", label: "Product templates" },
+  { href: "/dashboard/notifications", label: "Notifications" },
   { href: "/dashboard/admin/stores", label: "Stores" },
   { href: "/dashboard/admin/orders", label: "Orders" },
 ];
 
 const storeOwnerLinks = [
+  { href: "/dashboard/notifications", label: "Notifications" },
   { href: "/dashboard/store", label: "Overview" },
   { href: "/dashboard/store/products", label: "Products" },
   { href: "/dashboard/store/orders", label: "Orders" },

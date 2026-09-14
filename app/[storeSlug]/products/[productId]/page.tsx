@@ -13,6 +13,7 @@ interface Variant {
   size: string;
   color: string;
   retail_price: string;
+  image_url?: string;
 }
 
 interface Product {
@@ -72,7 +73,8 @@ export default function ProductDetailPage() {
       title: product.title,
       variantName: selectedVariant.name,
       priceCents: Math.round(parseFloat(selectedVariant.retail_price) * 100),
-      thumbnailUrl: product.thumbnail_url ?? undefined,
+      thumbnailUrl:
+        selectedVariant.image_url ?? product.thumbnail_url ?? undefined,
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -83,11 +85,11 @@ export default function ProductDetailPage() {
       <div className="grid md:grid-cols-2 gap-8">
         {/* Image */}
         <div className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden">
-          {product.thumbnail_url ? (
+          {selectedVariant?.image_url || product.thumbnail_url ? (
             <img
-              src={product.thumbnail_url}
+              src={selectedVariant?.image_url || product.thumbnail_url!}
               alt={product.title}
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
             />
           ) : (
             <span className="text-6xl text-muted-foreground">

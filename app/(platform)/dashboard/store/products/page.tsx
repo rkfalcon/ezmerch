@@ -27,7 +27,9 @@ export default async function StoreOwnerProductsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">My Products</h1>
-          <p className="text-muted-foreground">Manage your store&apos;s products</p>
+          <p className="text-muted-foreground">
+            Manage your store&apos;s products
+          </p>
         </div>
         <Link href="/dashboard/store/products/new">
           <Button>Add Product</Button>
@@ -53,6 +55,13 @@ export default async function StoreOwnerProductsPage() {
                 return (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">
+                      {product.thumbnail_url && (
+                        <img
+                          src={product.thumbnail_url}
+                          alt={product.title}
+                          className="h-20 w-20 object-contain rounded mb-2"
+                        />
+                      )}
                       {product.title}
                     </TableCell>
                     <TableCell>{variantCount} variants</TableCell>
@@ -70,7 +79,10 @@ export default async function StoreOwnerProductsPage() {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                <TableCell
+                  colSpan={4}
+                  className="text-center py-8 text-muted-foreground"
+                >
                   No products yet. Add your first product to get started.
                 </TableCell>
               </TableRow>

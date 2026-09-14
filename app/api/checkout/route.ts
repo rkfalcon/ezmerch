@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   if (!storeId || !items?.length || !shippingAddress || !customerEmail) {
     return NextResponse.json(
       { error: "Missing required fields" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -35,7 +35,9 @@ export async function POST(request: Request) {
   }
 
   // Server-side cart validation — look up actual prices from DB
-  const productIds = [...new Set(items.map((i: { productId: string }) => i.productId))];
+  const productIds = [
+    ...new Set(items.map((i: { productId: string }) => i.productId)),
+  ];
   const { data: products } = await supabase
     .from("products")
     .select("id, store_id, variants, published")
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
   if (!products || products.length !== productIds.length) {
     return NextResponse.json(
       { error: "Some products are no longer available" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -56,6 +58,7 @@ export async function POST(request: Request) {
     variantKey: string;
     quantity: number;
     priceCents: number;
+    printfulSyncVariantId: number;
   }> = [];
 
   for (const item of items) {
@@ -63,7 +66,7 @@ export async function POST(request: Request) {
     if (!product || product.store_id !== storeId) {
       return NextResponse.json(
         { error: `Product ${item.productId} does not belong to this store` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -73,13 +76,13 @@ export async function POST(request: Request) {
         : product.variants;
 
     const variant = variants.find(
-      (v: { variant_id: number }) => `${v.variant_id}` === item.variantKey
+      (v: { variant_id: number }) => `${v.variant_id}` === item.variantKey,
     );
 
     if (!variant) {
       return NextResponse.json(
         { error: `Invalid variant ${item.variantKey}` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -91,6 +94,7 @@ export async function POST(request: Request) {
       variantKey: item.variantKey,
       quantity: item.quantity,
       priceCents,
+      printfulSyncVariantId: variant.sync_variant_id ?? variant.variant_id,
     });
   }
 
@@ -115,7 +119,8 @@ export async function POST(request: Request) {
           variantKey: i.variantKey,
           quantity: i.quantity,
           priceCents: i.priceCents,
-        }))
+          printfulSyncVariantId: i.printfulSyncVariantId,
+        })),
       ),
       shipping_address: JSON.stringify(shippingAddress),
       subtotal_cents: subtotalCents.toString(),
@@ -136,9 +141,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const paymentIntent = await stripe.paymentIntents.create(
-      paymentIntentParams
-    );
+    const paymentIntent =
+      await stripe.paymentIntents.create(paymentIntentParams);
 
     return NextResponse.json({
       clientSecret: paymentIntent.client_secret,
@@ -148,7 +152,8 @@ export async function POST(request: Request) {
       totalCents,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Payment creation failed";
+    const message =
+      err instanceof Error ? err.message : "Payment creation failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
