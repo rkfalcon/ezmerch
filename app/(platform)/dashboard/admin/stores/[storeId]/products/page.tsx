@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ProductColorPreview } from "@/components/dashboard/product-color-preview";
 import {
   Table,
   TableBody,
@@ -71,14 +71,13 @@ export default async function AdminStoreProductsPage({
                 return (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">
-                      {product.thumbnail_url && (
-                        <img
-                          src={product.thumbnail_url}
-                          alt={product.title}
-                          className="h-20 w-20 object-contain rounded mb-2"
-                        />
-                      )}
-                      {product.title}
+                      <ProductColorPreview
+                        product={{
+                          id: product.id,
+                          title: product.title,
+                          thumbnail_url: product.thumbnail_url,
+                        }}
+                      />
                       <div className="mt-2">
                         <LineupProductPrice
                           productId={product.id}

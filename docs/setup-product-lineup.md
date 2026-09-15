@@ -36,6 +36,14 @@ Uploads, retries, and template activation also start a bounded initial worker pa
 
 ## Operational checks
 
+### Product previews and color availability
+
+Admins and store owners can click a product image or name in the Products table to open its large mockup preview. Click a color name to preview it, check the colors to offer, then choose **Save enabled colors**. All sizes within an enabled color remain available. Disabled colors disappear from storefront choices and are rejected during checkout, including older carts. Catalog variants and images are preserved for re-enabling later. At least one color must stay enabled; use the product visibility control to hide the whole product.
+
+Apply `20260915144718_product_enabled_colors.sql` before deploying these controls. Existing products default to all colors enabled. The API checks the current admin role or store ownership before allowing either reads or writes. The owner Products page resolves current store ownership from the database.
+
+Verification included a browser fixture with real Black/White mockup URLs: switching images, saving, reopening, rejecting an empty selection, and mobile layout. API requests without authentication return 403. Automated tests cover color filtering, all sizes, unknown selections, default availability, and the database constraint. No live store color choices were changed during verification.
+
 `product_generation_jobs` contains persisted progress, attempts, and errors. Five consecutive failures require an admin retry. `notification_emails` tracks email attempts; check it for failed deliveries after configuring a verified sender. Resend idempotency keys avoid duplicate emails during ordinary retries.
 
 ## Verification

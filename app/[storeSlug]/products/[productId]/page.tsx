@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/components/storefront/cart-provider";
 import { createClient } from "@/lib/supabase/client";
+import { enabledVariants } from "@/lib/product-colors";
 
 interface Variant {
   variant_id: number;
@@ -39,23 +40,27 @@ export default function ProductDetailPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from("products")
-        .select("id, title, description, thumbnail_url, variants")
+        .select(
+          "id, title, description, thumbnail_url, variants, enabled_colors, stores!inner(slug)",
+        )
         .eq("id", productId)
         .eq("published", true)
+        .eq("stores.slug", storeSlug)
         .single();
 
       if (data) {
-        const variants =
+        const allVariants: Variant[] =
           typeof data.variants === "string"
             ? JSON.parse(data.variants)
             : data.variants;
+        const variants = enabledVariants(allVariants, data.enabled_colors);
         const p = { ...data, variants } as Product;
         setProduct(p);
         if (variants.length > 0) setSelectedVariant(variants[0]);
       }
     }
     load();
-  }, [productId]);
+  }, [productId, storeSlug]);
 
   if (!product) {
     return (

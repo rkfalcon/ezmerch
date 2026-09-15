@@ -26,6 +26,7 @@ import { ProductPublishToggle } from "@/components/dashboard/product-publish-tog
 import { RefundButton } from "@/components/dashboard/refund-button";
 import { LineupLogo } from "@/components/dashboard/lineup-logo";
 import { LineupProductPrice } from "@/components/dashboard/lineup-product-price";
+import { ProductColorPreview } from "@/components/dashboard/product-color-preview";
 
 const statusColors: Record<
   string,
@@ -220,15 +221,14 @@ export default async function AdminStoreDetailPage({
                       <TableRow key={product.id}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
-                            {product.thumbnail_url && (
-                              <img
-                                src={product.thumbnail_url}
-                                alt={product.title}
-                                className="h-16 w-16 object-contain rounded"
-                              />
-                            )}
                             <div>
-                              {product.title}
+                              <ProductColorPreview
+                                product={{
+                                  id: product.id,
+                                  title: product.title,
+                                  thumbnail_url: product.thumbnail_url,
+                                }}
+                              />
                               <div className="mt-2">
                                 <LineupProductPrice
                                   productId={product.id}

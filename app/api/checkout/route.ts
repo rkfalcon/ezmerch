@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { enabledVariants, type ColorVariant } from "@/lib/product-colors";
 import { stripe } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
 import { calculateRevenueSplit } from "@/lib/revenue";
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
   ];
   const { data: products } = await supabase
     .from("products")
-    .select("id, store_id, variants, published")
+    .select("id, store_id, variants, published, enabled_colors")
     .in("id", productIds)
     .eq("published", true);
 
@@ -70,12 +71,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const variants =
+    const allVariants: ColorVariant[] =
       typeof product.variants === "string"
         ? JSON.parse(product.variants)
         : product.variants;
 
-    const variant = variants.find(
+    const variant = enabledVariants(allVariants, product.enabled_colors).find(
       (v: { variant_id: number }) => `${v.variant_id}` === item.variantKey,
     );
 

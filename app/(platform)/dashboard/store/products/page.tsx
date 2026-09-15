@@ -1,5 +1,5 @@
 import { requireStoreOwner } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,15 +11,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProductPublishToggle } from "@/components/dashboard/product-publish-toggle";
+import { ProductColorPreview } from "@/components/dashboard/product-color-preview";
 
 export default async function StoreOwnerProductsPage() {
   const user = await requireStoreOwner();
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+  // Resolve current ownership from the database, including sessions whose role
+  // claim has no store ID. Never trust a client-provided store ID here.
+  const { data: stores, error: storesError } = await supabase
+    .from("stores").select("id").eq("owner_id", user.id);
+  if (storesError) throw storesError;
 
   const { data: products } = await supabase
     .from("products")
     .select("*")
-    .eq("store_id", user.storeId)
+    .in("store_id", (stores ?? []).map(store => store.id))
     .order("created_at", { ascending: false });
 
   return (
@@ -55,14 +61,13 @@ export default async function StoreOwnerProductsPage() {
                 return (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">
-                      {product.thumbnail_url && (
-                        <img
-                          src={product.thumbnail_url}
-                          alt={product.title}
-                          className="h-20 w-20 object-contain rounded mb-2"
-                        />
-                      )}
-                      {product.title}
+                      <ProductColorPreview
+                        product={{
+                          id: product.id,
+                          title: product.title,
+                          thumbnail_url: product.thumbnail_url,
+                        }}
+                      />
                     </TableCell>
                     <TableCell>{variantCount} variants</TableCell>
                     <TableCell>

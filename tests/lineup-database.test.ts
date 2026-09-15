@@ -27,6 +27,12 @@ test("logo upload snapshots initial publication, later templates create drafts, 
       `select to_regclass('public.product_templates') is not null as exists`,
     );
     assert.equal(tables.rows[0].exists, true, "template schema must exist");
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260915144718_product_enabled_colors.sql",
+        "utf8",
+      ),
+    );
     await db.exec(`insert into stores(id,name,slug) values ('00000000-0000-0000-0000-000000000001','Test','test');
       update product_templates set active=true where slug in ('hoodie','t-shirt');
       update stores set lineup_logo_path='logos/test.png' where slug='test';`);
@@ -44,6 +50,18 @@ test("logo upload snapshots initial publication, later templates create drafts, 
     );
     await db.exec(`insert into products(store_id,title,published) select id,'Existing hidden product',false from stores where slug='test';
       update product_templates set active=true where slug='beanie';`);
+    assert.equal(
+      (
+        await db.query<{ enabled_colors: string[] | null }>(
+          "select enabled_colors from products",
+        )
+      ).rows[0].enabled_colors,
+      null,
+    );
+    await assert.rejects(
+      () => db.exec("update products set enabled_colors='{}'::text[]"),
+      /products_enabled_colors_nonempty/,
+    );
     jobs = await db.query(
       `select j.publish_on_complete from product_generation_jobs j join product_templates t on t.id=j.template_id where t.slug='beanie'`,
     );
