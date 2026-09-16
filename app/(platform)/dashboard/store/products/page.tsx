@@ -1,3 +1,9 @@
+import {
+  StoreProductColorPills,
+  storeProductEnabled,
+  enabledProductClass,
+  disabledProductClass,
+} from "@/components/dashboard/product-availability";
 import { requireStoreOwner } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
@@ -64,7 +70,14 @@ export default async function StoreOwnerProductsPage() {
                   ? product.variants.length
                   : 0;
                 return (
-                  <TableRow key={product.id}>
+                  <TableRow
+                    key={product.id}
+                    className={
+                      storeProductEnabled(product)
+                        ? enabledProductClass
+                        : disabledProductClass
+                    }
+                  >
                     <TableCell className="font-medium">
                       <ProductColorPreview
                         product={{
@@ -73,6 +86,7 @@ export default async function StoreOwnerProductsPage() {
                           thumbnail_url: product.thumbnail_url,
                         }}
                       />
+                      <StoreProductColorPills product={product} />
                     </TableCell>
                     <TableCell>{variantCount} variants</TableCell>
                     <TableCell>

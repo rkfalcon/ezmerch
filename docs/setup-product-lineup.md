@@ -93,3 +93,11 @@ propagation and anonymous read restrictions without changing live selections.
 All nine live templates have generated sample thumbnails; two catalog colors have
 no generated sample yet and display the explicit preview-unavailable message.
 Email delivery remains deferred.
+
+Store product tables now show the same color availability pills as Product Templates.
+Enabled products and colors use green; disabled products and colors use red with
+minus markers and crossed-out color names. Labels and pill descriptions distinguish
+global restrictions from local choices. Product rows also appear disabled when no
+colors remain purchasable. Visibility changes refresh the full row and its pills.
+Desktop and mobile fixture checks covered enabled, locally hidden, globally disabled,
+and mixed global/local color selections; the mobile layout had no page overflow.

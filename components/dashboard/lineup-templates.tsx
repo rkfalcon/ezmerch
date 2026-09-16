@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  ColorAvailabilityPills,
+  enabledProductClass,
+  disabledProductClass,
+} from "@/components/dashboard/product-availability";
 import { ProductColorPreview } from "@/components/dashboard/product-color-preview";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -97,7 +102,10 @@ export function LineupTemplates({
       )}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {templates.map((t) => (
-          <Card key={t.id}>
+          <Card
+            key={t.id}
+            className={t.active ? enabledProductClass : disabledProductClass}
+          >
             <CardHeader>
               <p className="text-xs text-muted-foreground">
                 {t.category} · {t.active ? "Active" : "Inactive"}
@@ -121,19 +129,12 @@ export function LineupTemplates({
                 {Math.round(Number(t.scale) * 100)}% logo scale
               </p>
               {previews[t.id]?.colors && (
-                <div
-                  className="flex max-h-32 overflow-y-auto flex-wrap gap-1"
-                  aria-label="Global color options"
-                >
-                  {previews[t.id].colors.map((color) => (
-                    <span
-                      key={color}
-                      className={`rounded border px-2 py-1 text-xs ${!t.active || (t.enabled_colors != null && !t.enabled_colors.includes(color)) ? "text-muted-foreground line-through" : "bg-muted"}`}
-                    >
-                      {color}
-                    </span>
-                  ))}
-                </div>
+                <ColorAvailabilityPills
+                  colors={previews[t.id].colors}
+                  productEnabled={t.active}
+                  enabledColors={t.enabled_colors}
+                  scope="global"
+                />
               )}
               <div className="flex gap-2">
                 <Button
