@@ -30,3 +30,22 @@ test("banner settings validate colors and length while allowing owners to hide t
   );
   assert.throws(() => validateBannerSettings(null, "Hi"), /valid banner color/);
 });
+
+test("header and text colors validate independently and allow automatic banner text", async () => {
+  const { validateHeaderColors } = await import("../lib/store-banner");
+  assert.deepEqual(validateHeaderColors("#123456", "#ABCDEF", null), {
+    header_color: "#123456",
+    header_text_color: "#abcdef",
+    banner_text_color: null,
+  });
+  assert.equal(
+    validateHeaderColors("#ffffff", "#000000", "#FFCC00").banner_text_color,
+    "#ffcc00",
+  );
+  assert.throws(() => validateHeaderColors("bad", "#000000", null), /valid/);
+  assert.throws(() => validateHeaderColors("#ffffff", "bad", null), /valid/);
+  assert.throws(
+    () => validateHeaderColors("#ffffff", "#000000", "bad"),
+    /valid/,
+  );
+});

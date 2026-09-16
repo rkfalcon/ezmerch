@@ -15,7 +15,7 @@ export default async function StorePage({
   const { data: store } = await supabase
     .from("stores")
     .select(
-      "id, name, slug, brand_colors, logo_url, banner_color, banner_subtitle",
+      "id, name, slug, brand_colors, logo_url, banner_color, banner_subtitle, banner_text_color",
     )
     .eq("slug", storeSlug)
     .single();

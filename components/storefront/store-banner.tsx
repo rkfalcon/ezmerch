@@ -8,6 +8,9 @@ export interface BannerStore {
   name: string;
   logo_url: string | null;
   brand_colors: { primary: string };
+  header_color?: string | null;
+  header_text_color?: string | null;
+  banner_text_color?: string | null;
   banner_color?: string | null;
   banner_subtitle?: string | null;
 }
@@ -31,7 +34,7 @@ export function StoreBanner({
       aria-label={preview ? "Banner preview" : "Store banner"}
       style={{
         backgroundColor: background,
-        color: bannerTextColor(background),
+        color: store.banner_text_color ?? bannerTextColor(background),
       }}
     >
       <div className="container mx-auto px-4">

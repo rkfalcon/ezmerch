@@ -40,3 +40,27 @@ export function validateBannerSettings(color: unknown, subtitle: unknown) {
     banner_subtitle: subtitle.trim(),
   };
 }
+
+export function validateHeaderColors(
+  header: unknown,
+  text: unknown,
+  bannerText: unknown,
+) {
+  if (
+    typeof header !== "string" ||
+    !isBannerColor(header) ||
+    typeof text !== "string" ||
+    !isBannerColor(text) ||
+    (bannerText !== null &&
+      (typeof bannerText !== "string" || !isBannerColor(bannerText)))
+  )
+    throw new Error(
+      "Choose valid six-digit hex colors for the header and text.",
+    );
+  return {
+    header_color: header.toLowerCase(),
+    header_text_color: text.toLowerCase(),
+    banner_text_color:
+      typeof bannerText === "string" ? bannerText.toLowerCase() : null,
+  };
+}

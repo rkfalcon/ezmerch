@@ -1,7 +1,10 @@
 "use server";
 
 import { lineupStoreAccess } from "@/lib/lineup/access";
-import { validateBannerSettings } from "@/lib/store-banner";
+import {
+  validateBannerSettings,
+  validateHeaderColors,
+} from "@/lib/store-banner";
 import { revalidatePath } from "next/cache";
 
 export async function updateStoreBanner(storeId: string, formData: FormData) {
@@ -11,9 +14,18 @@ export async function updateStoreBanner(storeId: string, formData: FormData) {
       formData.get("bannerColor"),
       formData.get("bannerSubtitle"),
     );
+    const headerSettings = formData.has("headerColor")
+      ? validateHeaderColors(
+          formData.get("headerColor"),
+          formData.get("headerTextColor"),
+          formData.get("automaticBannerText") === "on"
+            ? null
+            : formData.get("bannerTextColor"),
+        )
+      : {};
     const { error } = await db
       .from("stores")
-      .update(settings)
+      .update({ ...settings, ...headerSettings })
       .eq("id", store.id)
       .select("id")
       .single();

@@ -128,3 +128,17 @@ Verification: 16 tests, TypeScript and build; browser checks for live color/text
 preview, mobile layout, hidden empty subtitle, and unauthenticated save denial.
 A rolled-back live database transaction verified persistence without changing the
 Demo Store's banner. Authenticated saves use the existing store access check.
+
+The same settings section is now named **Storefront header and banner**. It includes
+Header background color and Header text color pickers. Header text applies to the
+store name, Products link, and Cart button on every storefront page. Uncheck
+Automatically choose readable banner text to select a custom Banner text color;
+checking it again restores automatic contrast. Save appearance writes all choices
+through the existing owner/admin-authorized action. Existing clients saving only
+banner settings do not overwrite the new header colors.
+
+Migration `20260916212141_store_header_colors.sql` adds nullable, hex-validated
+header_color, header_text_color, and banner_text_color fields. Verification: all
+17 tests and the production build pass; browser checks confirmed real header link
+color inheritance, manual banner text, automatic reset, and mobile preview. A
+rolled-back database write confirmed persistence without changing store choices.

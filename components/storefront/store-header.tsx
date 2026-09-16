@@ -6,6 +6,8 @@ import { CartSheet } from "./cart-sheet";
 
 interface StoreHeaderProps {
   store: {
+    header_color?: string | null;
+    header_text_color?: string | null;
     name: string;
     slug: string;
     brand_colors: { primary: string };
@@ -17,12 +19,15 @@ export function StoreHeader({ store }: StoreHeaderProps) {
   const { totalItems } = useCart();
 
   return (
-    <header className="border-b">
+    <header
+      className="border-b"
+      style={{
+        backgroundColor: store.header_color ?? "#ffffff",
+        color: store.header_text_color ?? "#000000",
+      }}
+    >
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link
-          href={`/${store.slug}`}
-          className="flex items-center gap-3"
-        >
+        <Link href={`/${store.slug}`} className="flex items-center gap-3">
           {store.logo_url ? (
             <img
               src={store.logo_url}
@@ -43,12 +48,12 @@ export function StoreHeader({ store }: StoreHeaderProps) {
         <div className="flex items-center gap-4">
           <Link
             href={`/${store.slug}/products`}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="text-sm text-inherit hover:underline"
           >
             Products
           </Link>
           <CartSheet storeSlug={store.slug}>
-            <button className="relative text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <button className="relative text-sm text-inherit hover:underline">
               Cart
               {totalItems > 0 && (
                 <span
