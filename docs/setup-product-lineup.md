@@ -108,3 +108,23 @@ exists in the new color, otherwise select an available variant. The mockup, pric
 and cart entry follow the selected variant. Existing global/store color filtering
 still applies. Browser verification against Demo Store data covered color image
 changes, size retention/fallback, the White / 3XL cart entry, and mobile layout.
+
+## Storefront banner settings (September 16, 2026)
+
+Store owners can use Settings → Storefront banner; platform admins use the store's
+Settings tab. A native color picker and hex input set the banner background, and a
+240-character text field edits the subtitle below the store name. Empty text hides
+the subtitle. The shared live preview matches the storefront, with automatic black
+or white text for contrast. Save banner updates only those banner fields.
+
+Migration `20260916211607_store_banner_settings.sql` adds nullable banner_color and
+banner_subtitle to the existing stores table, with color/length constraints. Nulls
+retain the previous primary-color tint and default subtitle. The server action
+checks current ownership or platform-admin access before writing and revalidates
+the store and settings pages. Owner settings also resolve ownership when a valid
+session lacks a store ID claim.
+
+Verification: 16 tests, TypeScript and build; browser checks for live color/text
+preview, mobile layout, hidden empty subtitle, and unauthenticated save denial.
+A rolled-back live database transaction verified persistence without changing the
+Demo Store's banner. Authenticated saves use the existing store access check.

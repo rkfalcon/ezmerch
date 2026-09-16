@@ -1,3 +1,4 @@
+import { StoreBannerForm } from "@/components/dashboard/store-banner-form";
 import {
   StoreProductColorPills,
   storeProductEnabled,
@@ -350,6 +351,7 @@ export default async function AdminStoreDetailPage({
 
         {/* SETTINGS TAB */}
         <TabsContent value="settings" className="mt-6">
+          <StoreBannerForm store={store} />
           <StoreForm store={store} />
         </TabsContent>
       </Tabs>

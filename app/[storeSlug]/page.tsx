@@ -1,3 +1,4 @@
+import { StoreBanner } from "@/components/storefront/store-banner";
 import { enabledVariants } from "@/lib/product-colors";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
@@ -13,7 +14,9 @@ export default async function StorePage({
 
   const { data: store } = await supabase
     .from("stores")
-    .select("id, name, slug, brand_colors, logo_url")
+    .select(
+      "id, name, slug, brand_colors, logo_url, banner_color, banner_subtitle",
+    )
     .eq("slug", storeSlug)
     .single();
 
@@ -40,32 +43,7 @@ export default async function StorePage({
 
   return (
     <div>
-      {/* Hero */}
-      <section
-        className="py-16 text-center"
-        style={{ backgroundColor: store.brand_colors.primary + "10" }}
-      >
-        <div className="container mx-auto px-4">
-          {store.logo_url ? (
-            <img
-              src={store.logo_url}
-              alt={store.name}
-              className="mx-auto mb-4 h-20 w-20 rounded-full object-cover"
-            />
-          ) : (
-            <div
-              className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full text-3xl font-bold text-white"
-              style={{ backgroundColor: store.brand_colors.primary }}
-            >
-              {store.name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <h1 className="text-3xl font-bold">{store.name}</h1>
-          <p className="mt-2 text-muted-foreground">
-            Shop our collection of custom merchandise
-          </p>
-        </div>
-      </section>
+      <StoreBanner store={store} />
 
       {/* Products Grid */}
       <section className="container mx-auto px-4 py-12">
