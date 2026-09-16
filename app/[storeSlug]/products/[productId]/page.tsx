@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/components/storefront/cart-provider";
 import { createClient } from "@/lib/supabase/client";
-import { enabledVariants } from "@/lib/product-colors";
+import { colorName, enabledVariants } from "@/lib/product-colors";
 
 interface Variant {
   variant_id: number;
@@ -91,6 +90,33 @@ export default function ProductDetailPage() {
     );
   }
 
+  const colors = [...new Set(product.variants.map(colorName))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const sizeOrder = [
+    "XS",
+    "S",
+    "M",
+    "L",
+    "XL",
+    "2XL",
+    "3XL",
+    "4XL",
+    "5XL",
+    "6XL",
+  ];
+  const colorVariants = product.variants
+    .filter(
+      (v) => selectedVariant && colorName(v) === colorName(selectedVariant),
+    )
+    .sort((a, b) => {
+      const first = sizeOrder.indexOf(a.size),
+        second = sizeOrder.indexOf(b.size);
+      return first >= 0 && second >= 0
+        ? first - second
+        : a.size.localeCompare(b.size, undefined, { numeric: true });
+    });
+
   function handleAddToCart() {
     if (!selectedVariant || !product) return;
     addItem({
@@ -137,30 +163,62 @@ export default function ProductDetailPage() {
             </p>
           )}
 
-          {/* Variant Selector */}
-          {product.variants.length > 1 && (
-            <div className="mt-6">
-              <p className="text-sm font-medium mb-2">Select Variant</p>
-              <div className="flex flex-wrap gap-2">
-                {product.variants.map((v) => (
-                  <button
-                    key={v.variant_id}
-                    onClick={() => setSelectedVariant(v)}
-                    className="focus:outline-none"
+          {selectedVariant && (
+            <div className="mt-6 grid max-w-md gap-4 sm:grid-cols-2">
+              {(colors.length > 1 || colors[0] !== "Default") && (
+                <label
+                  className="space-y-2 text-sm font-medium"
+                  htmlFor="product-color"
+                >
+                  <span className="block">Color</span>
+                  <select
+                    id="product-color"
+                    value={colorName(selectedVariant)}
+                    className="w-full min-w-0 rounded-md border bg-background px-3 py-2.5 text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+                    onChange={(event) => {
+                      const matches = product.variants.filter(
+                        (v) => colorName(v) === event.target.value,
+                      );
+                      setSelectedVariant(
+                        matches.find((v) => v.size === selectedVariant.size) ??
+                          matches[0],
+                      );
+                      setAdded(false);
+                    }}
                   >
-                    <Badge
-                      variant={
-                        selectedVariant?.variant_id === v.variant_id
-                          ? "default"
-                          : "outline"
-                      }
-                      className="cursor-pointer px-3 py-1"
-                    >
-                      {v.size} / {v.color}
-                    </Badge>
-                  </button>
-                ))}
-              </div>
+                    {colors.map((color) => (
+                      <option key={color} value={color}>
+                        {color}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label
+                className="space-y-2 text-sm font-medium"
+                htmlFor="product-size"
+              >
+                <span className="block">Size</span>
+                <select
+                  id="product-size"
+                  value={selectedVariant.variant_id}
+                  className="w-full min-w-0 rounded-md border bg-background px-3 py-2.5 text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+                  onChange={(event) => {
+                    setSelectedVariant(
+                      colorVariants.find(
+                        (v) => v.variant_id === Number(event.target.value),
+                      ) ?? selectedVariant,
+                    );
+                    setAdded(false);
+                  }}
+                >
+                  {colorVariants.map((variant) => (
+                    <option key={variant.variant_id} value={variant.variant_id}>
+                      {variant.size || "One size"}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           )}
 

@@ -101,3 +101,10 @@ global restrictions from local choices. Product rows also appear disabled when n
 colors remain purchasable. Visibility changes refresh the full row and its pills.
 Desktop and mobile fixture checks covered enabled, locally hidden, globally disabled,
 and mixed global/local color selections; the mobile layout had no page overflow.
+
+Storefront product details use Color and Size dropdowns instead of a button for
+every color/size combination. Color changes preserve the selected size when it
+exists in the new color, otherwise select an available variant. The mockup, price,
+and cart entry follow the selected variant. Existing global/store color filtering
+still applies. Browser verification against Demo Store data covered color image
+changes, size retention/fallback, the White / 3XL cart entry, and mobile layout.
