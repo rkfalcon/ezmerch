@@ -19,13 +19,18 @@ export default async function StoreOwnerProductsPage() {
   // Resolve current ownership from the database, including sessions whose role
   // claim has no store ID. Never trust a client-provided store ID here.
   const { data: stores, error: storesError } = await supabase
-    .from("stores").select("id").eq("owner_id", user.id);
+    .from("stores")
+    .select("id")
+    .eq("owner_id", user.id);
   if (storesError) throw storesError;
 
   const { data: products } = await supabase
     .from("products")
     .select("*")
-    .in("store_id", (stores ?? []).map(store => store.id))
+    .in(
+      "store_id",
+      (stores ?? []).map((store) => store.id),
+    )
     .order("created_at", { ascending: false });
 
   return (
@@ -74,6 +79,7 @@ export default async function StoreOwnerProductsPage() {
                       <ProductPublishToggle
                         productId={product.id}
                         published={product.published}
+                        globalActive={product.global_active}
                       />
                     </TableCell>
                     <TableCell>

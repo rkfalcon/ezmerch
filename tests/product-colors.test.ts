@@ -35,3 +35,20 @@ test("single-color and colorless products retain all size variants", () => {
   assert.deepEqual(validateColorSelection(sizes, ["Default"]), ["Default"]);
   assert.equal(enabledVariants(sizes, ["Default"]).length, 2);
 });
+
+test("global limits intersect local choices without changing either saved selection", () => {
+  const local = ["Black", "White"];
+  const global = ["White"];
+  assert.deepEqual(
+    enabledVariants(variants, local, global).map((v) => v.variant_id),
+    [3],
+  );
+  assert.deepEqual(enabledVariants(variants, ["Black"], global), []);
+  assert.deepEqual(enabledVariants(variants, local, null), variants);
+  assert.deepEqual(
+    enabledVariants(variants, ["Black"], null).map((v) => v.variant_id),
+    [1, 2],
+  );
+  assert.deepEqual(local, ["Black", "White"]);
+  assert.deepEqual(global, ["White"]);
+});

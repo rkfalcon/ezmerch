@@ -15,6 +15,7 @@ interface ProductCardProps {
         }>
       | string;
     enabled_colors?: string[] | null;
+    global_enabled_colors?: string[] | null;
   };
   storeSlug: string;
 }
@@ -28,7 +29,12 @@ export function ProductCard({ product, storeSlug }: ProductCardProps) {
     typeof product.variants === "string"
       ? JSON.parse(product.variants)
       : product.variants;
-  const variants = enabledVariants(allVariants, product.enabled_colors);
+  const variants = enabledVariants(
+    allVariants,
+    product.enabled_colors,
+    product.global_enabled_colors,
+  );
+  if (!variants.length) return null;
   const thumbnail =
     variants.find((v) => v.image_url)?.image_url ?? product.thumbnail_url;
 

@@ -20,9 +20,18 @@ interface ProductSummary {
 interface Details extends ProductSummary {
   variants: ColorVariant[];
   enabled_colors: string[] | null;
+  global_active?: boolean;
+  global_enabled_colors?: string[] | null;
+  preview_source?: "sample" | "catalog";
 }
 
-export function ProductColorPreview({ product }: { product: ProductSummary }) {
+export function ProductColorPreview({
+  product,
+  scope = "store",
+}: {
+  product: ProductSummary;
+  scope?: "store" | "global";
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -51,19 +60,31 @@ export function ProductColorPreview({ product }: { product: ProductSummary }) {
           <DialogHeader className="pr-8">
             <DialogTitle>{product.title}</DialogTitle>
             <DialogDescription>
-              Preview each color, then choose which colors customers can buy.
+              {scope === "global"
+                ? "Sample logo preview. These color settings apply to every store."
+                : "Preview each color, then choose which colors customers can buy in this store."}{" "}
               All available sizes for enabled colors stay available.
             </DialogDescription>
           </DialogHeader>
-          {open && <ColorEditor product={product} />}
+          {open && <ColorEditor product={product} scope={scope} />}
         </DialogContent>
       </Dialog>
     </>
   );
 }
 
-function ColorEditor({ product }: { product: ProductSummary }) {
+function ColorEditor({
+  product,
+  scope,
+}: {
+  product: ProductSummary;
+  scope: "store" | "global";
+}) {
   const router = useRouter();
+  const endpoint =
+    scope === "global"
+      ? `/api/lineup/templates/${product.id}/colors`
+      : `/api/products/${product.id}/colors`;
   const [details, setDetails] = useState<Details | null>(null);
   const [selected, setSelected] = useState("");
   const [enabled, setEnabled] = useState<string[]>([]);
@@ -74,7 +95,7 @@ function ColorEditor({ product }: { product: ProductSummary }) {
   const [search, setSearch] = useState("");
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/products/${product.id}/colors`, { signal: controller.signal })
+    fetch(endpoint, { signal: controller.signal })
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok)
@@ -92,8 +113,13 @@ function ColorEditor({ product }: { product: ProductSummary }) {
         if (!controller.signal.aborted) setError(e.message);
       });
     return () => controller.abort();
-  }, [product.id]);
+  }, [endpoint]);
   const colors = details ? [...new Set(details.variants.map(colorName))] : [];
+  const globallyAllowed = (color: string) =>
+    scope === "global" ||
+    (details?.global_active !== false &&
+      (details?.global_enabled_colors == null ||
+        details.global_enabled_colors.includes(color)));
   const colorVariants =
     details?.variants.filter((v) => colorName(v) === selected) ?? [];
   const image = colorVariants.find((v) => v.image_url)?.image_url;
@@ -104,7 +130,7 @@ function ColorEditor({ product }: { product: ProductSummary }) {
     setError("");
     setNotice("");
     try {
-      const response = await fetch(`/api/products/${product.id}/colors`, {
+      const response = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ colors: enabled }),
@@ -112,7 +138,11 @@ function ColorEditor({ product }: { product: ProductSummary }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save colors");
       setSaved(data.colors);
-      setNotice("Color availability saved.");
+      setNotice(
+        scope === "global"
+          ? "Global color availability saved for all stores."
+          : "Color availability saved.",
+      );
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save colors");
@@ -129,6 +159,18 @@ function ColorEditor({ product }: { product: ProductSummary }) {
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
       <div>
+        {scope === "global" && (
+          <p className="mb-2 text-sm text-muted-foreground">
+            {details.preview_source === "sample"
+              ? "Sample logo from a generated store product. Each store uses its own logo."
+              : "Catalog image. A sample logo mockup will appear after a store generates this product."}
+          </p>
+        )}
+        {details.global_active === false && (
+          <p className="mb-2 text-sm">
+            This product is disabled globally. Your store choices are preserved.
+          </p>
+        )}
         <div className="aspect-square rounded-lg border bg-white flex items-center justify-center overflow-hidden">
           {image ? (
             <img
@@ -154,9 +196,13 @@ function ColorEditor({ product }: { product: ProductSummary }) {
         </div>
         <p className="mt-3 font-medium">
           {selected}
-          {selected && !enabled.includes(selected)
-            ? " · Disabled in store"
-            : ""}
+          {!globallyAllowed(selected)
+            ? " · Disabled globally"
+            : selected && !enabled.includes(selected)
+              ? scope === "global"
+                ? " · Disabled globally"
+                : " · Disabled in store"
+              : ""}
         </p>
         <p className="text-sm text-muted-foreground">
           Sizes:{" "}
@@ -169,7 +215,7 @@ function ColorEditor({ product }: { product: ProductSummary }) {
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Available colors</h3>
           <span className="text-sm text-muted-foreground">
-            {enabled.length} of {colors.length} enabled
+            {enabled.filter(globallyAllowed).length} of {colors.length} enabled
           </span>
         </div>
         <label className="block text-sm">
@@ -188,7 +234,11 @@ function ColorEditor({ product }: { product: ProductSummary }) {
             size="sm"
             variant="outline"
             disabled={busy}
-            onClick={() => setEnabled(colors)}
+            onClick={() =>
+              setEnabled([
+                ...new Set([...enabled, ...colors.filter(globallyAllowed)]),
+              ])
+            }
           >
             Enable all
           </Button>
@@ -197,7 +247,9 @@ function ColorEditor({ product }: { product: ProductSummary }) {
             size="sm"
             variant="outline"
             disabled={busy}
-            onClick={() => setEnabled([])}
+            onClick={() =>
+              setEnabled(enabled.filter((c) => !globallyAllowed(c)))
+            }
           >
             Clear selection
           </Button>
@@ -214,7 +266,7 @@ function ColorEditor({ product }: { product: ProductSummary }) {
                   type="checkbox"
                   aria-label={`Enable ${color}`}
                   checked={enabled.includes(color)}
-                  disabled={busy}
+                  disabled={busy || !globallyAllowed(color)}
                   onChange={(e) => {
                     setNotice("");
                     setEnabled((current) =>
@@ -232,6 +284,11 @@ function ColorEditor({ product }: { product: ProductSummary }) {
                   className="flex-1 py-1 text-left rounded focus-visible:outline-2"
                 >
                   {color}
+                  {!globallyAllowed(color) && (
+                    <span className="block text-xs text-muted-foreground">
+                      Disabled globally · store preference saved
+                    </span>
+                  )}
                   <span className="float-right text-xs text-muted-foreground">
                     Preview
                   </span>

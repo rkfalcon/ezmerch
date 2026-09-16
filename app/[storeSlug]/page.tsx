@@ -1,3 +1,4 @@
+import { enabledVariants } from "@/lib/product-colors";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { ProductCard } from "@/components/storefront/product-card";
@@ -18,12 +19,24 @@ export default async function StorePage({
 
   if (!store) notFound();
 
-  const { data: products } = await supabase
+  const { data: allProducts } = await supabase
     .from("products")
     .select("*")
     .eq("store_id", store.id)
     .eq("published", true)
+    .eq("global_active", true)
     .order("created_at", { ascending: false });
+
+  const products = allProducts?.filter(
+    (product) =>
+      enabledVariants(
+        typeof product.variants === "string"
+          ? JSON.parse(product.variants)
+          : product.variants,
+        product.enabled_colors,
+        product.global_enabled_colors,
+      ).length > 0,
+  );
 
   return (
     <div>

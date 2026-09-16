@@ -12,7 +12,9 @@ async function accessibleProduct(productId: string) {
   const db = createAdminClient();
   const { data: product, error } = await db
     .from("products")
-    .select("id,title,thumbnail_url,variants,enabled_colors,store_id")
+    .select(
+      "id,title,thumbnail_url,variants,enabled_colors,global_active,global_enabled_colors,store_id",
+    )
     .eq("id", productId)
     .single();
   if (error || !product) return null;

@@ -33,39 +33,60 @@ export default function ProductDetailPage() {
   const { addItem } = useCart();
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       const supabase = createClient();
       const { data } = await supabase
         .from("products")
         .select(
-          "id, title, description, thumbnail_url, variants, enabled_colors, stores!inner(slug)",
+          "id, title, description, thumbnail_url, variants, enabled_colors, global_enabled_colors, stores!inner(slug)",
         )
         .eq("id", productId)
         .eq("published", true)
+        .eq("global_active", true)
         .eq("stores.slug", storeSlug)
         .single();
 
+      if (cancelled) return;
       if (data) {
         const allVariants: Variant[] =
           typeof data.variants === "string"
             ? JSON.parse(data.variants)
             : data.variants;
-        const variants = enabledVariants(allVariants, data.enabled_colors);
+        const variants = enabledVariants(
+          allVariants,
+          data.enabled_colors,
+          data.global_enabled_colors,
+        );
+        if (!variants.length) {
+          setUnavailable(true);
+          setProduct(null);
+          return;
+        }
+        setUnavailable(false);
         const p = { ...data, variants } as Product;
         setProduct(p);
         if (variants.length > 0) setSelectedVariant(variants[0]);
+      } else {
+        setUnavailable(true);
+        setProduct(null);
+        setSelectedVariant(null);
       }
     }
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [productId, storeSlug]);
 
   if (!product) {
     return (
       <div className="container mx-auto px-4 py-12 text-center text-muted-foreground">
-        Loading...
+        {unavailable ? "This product is currently unavailable." : "Loading..."}
       </div>
     );
   }

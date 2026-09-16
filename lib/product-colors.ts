@@ -15,10 +15,13 @@ export function colorName(variant: { color?: string | null }): string {
 export function enabledVariants<T extends { color?: string | null }>(
   variants: T[],
   colors?: string[] | null,
+  globalColors?: string[] | null,
 ): T[] {
-  return colors == null
-    ? variants
-    : variants.filter((v) => colors.includes(colorName(v)));
+  return variants.filter(
+    (v) =>
+      (colors == null || colors.includes(colorName(v))) &&
+      (globalColors == null || globalColors.includes(colorName(v))),
+  );
 }
 
 export function validateColorSelection(

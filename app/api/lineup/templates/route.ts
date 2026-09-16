@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { lineupAdmin } from "@/lib/lineup/access";
 import { PrintfulClient, groupPrintfiles } from "@/lib/lineup/printful";
@@ -82,14 +83,29 @@ export async function POST(request: Request) {
           console.error("Lineup worker:", error.message),
         ),
       );
+      revalidatePath("/", "layout");
       return Response.json({ activated: ready.length, errors });
     }
-    if (body.action === "disable") {
+    if (body.action === "disable" || body.action === "enable") {
+      if (body.action === "enable") {
+        const { data: template } = await db
+          .from("product_templates")
+          .select("catalog_product_id")
+          .eq("id", body.id)
+          .single();
+        if (!template?.catalog_product_id)
+          throw new Error(
+            "Choose a Printful product in Edit before enabling this template",
+          );
+      }
       const { error } = await db
         .from("product_templates")
-        .update({ active: false })
-        .eq("id", body.id);
+        .update({ active: body.action === "enable" })
+        .eq("id", body.id)
+        .select("id")
+        .single();
       if (error) throw error;
+      revalidatePath("/", "layout");
       return Response.json({ success: true });
     }
     const title = String(body.title ?? "").trim();
@@ -159,18 +175,17 @@ export async function POST(request: Request) {
     };
     const result = body.id
       ? await db.from("product_templates").update(value).eq("id", body.id)
-      : await db
-          .from("product_templates")
-          .insert({
-            ...value,
-            slug: `product-${productId}-${crypto.randomUUID().slice(0, 8)}`,
-          });
+      : await db.from("product_templates").insert({
+          ...value,
+          slug: `product-${productId}-${crypto.randomUUID().slice(0, 8)}`,
+        });
     if (result.error) throw result.error;
     after(() =>
       runLineupWorker().catch((error) =>
         console.error("Lineup worker:", error.message),
       ),
     );
+    revalidatePath("/", "layout");
     return Response.json({ success: true });
   } catch (error) {
     return Response.json(

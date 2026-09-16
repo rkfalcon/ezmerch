@@ -119,11 +119,13 @@ export async function toggleProductPublished(
     const supabase = createAdminClient();
     const { data: product, error: lookupError } = await supabase
       .from("products")
-      .select("store_id,variants,thumbnail_url,template_id")
+      .select("store_id,variants,thumbnail_url,template_id,global_active")
       .eq("id", productId)
       .single();
     if (lookupError || !product) return { error: "Product not found" };
     const { store } = await lineupStoreAccess(product.store_id);
+    if (published && !product.global_active)
+      return { error: "This product is disabled globally by the admin" };
     if (
       published &&
       product.template_id &&

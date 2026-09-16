@@ -243,6 +243,7 @@ export default async function AdminStoreDetailPage({
                           <ProductPublishToggle
                             productId={product.id}
                             published={product.published}
+                            globalActive={product.global_active}
                           />
                         </TableCell>
                         <TableCell>

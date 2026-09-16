@@ -61,3 +61,35 @@ The additive migration was applied to the existing EZMerch Supabase project and 
 The worker endpoint returns 401 without authorization and 200 with authorization, with an empty queue. The eight automated tests and production build pass. Repository-wide lint still reports the pre-existing cart-provider set-state-in-effect error; new code has no lint errors. Supabase security advisors reported warnings in existing functions and auth settings, not the new lineup functions.
 
 Nine templates are seeded but inactive. Real product generation and visual mockup approval still require activating templates and uploading the store logo. No real Printful products or customer orders were created during worker deployment verification. Email delivery remains deferred.
+
+## Global availability and template previews (September 16, 2026)
+
+Product Templates now shows generated sample-logo thumbnails and a color summary.
+Click the image/name to preview colors and save the globally enabled colors; the
+Enable/Disable globally button controls the entire template across existing and
+future stores. Sample images come from a generated store product, so each actual
+store still uses its own logo. Catalog colors without a generated mockup show an
+explicit unavailable-preview message rather than an incorrectly recolored image.
+
+Store product controls keep their own publication and color selections. Global
+limits override those selections in storefront listings, product details, and
+checkout, without overwriting them. Re-enabling a template or color globally
+restores only the choices each store had already enabled. Global-disabled options
+are marked and locked in store controls. Legacy products without templates remain
+independent.
+
+Migration `20260916204818_global_product_availability.sql` adds template color
+limits and database-maintained global availability fields on products. Triggers
+propagate global changes atomically and derive the fields on every product write,
+including worker completion. Template associations are immutable after product
+creation. The public product read policy also excludes globally disabled products.
+
+Verification: 14 automated tests pass, including two-store preference preservation,
+new products inheriting global limits, and attempts to forge derived fields. The
+production build passes. Browser checks using real mockup images and mocked API
+responses cover global color saving/reopening, color preview switching, locked
+store colors, and mobile layout. A rolled-back production transaction verified
+propagation and anonymous read restrictions without changing live selections.
+All nine live templates have generated sample thumbnails; two catalog colors have
+no generated sample yet and display the explicit preview-unavailable message.
+Email delivery remains deferred.

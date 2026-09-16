@@ -41,9 +41,12 @@ export async function POST(request: Request) {
   ];
   const { data: products } = await supabase
     .from("products")
-    .select("id, store_id, variants, published, enabled_colors")
+    .select(
+      "id, store_id, variants, published, enabled_colors, global_enabled_colors",
+    )
     .in("id", productIds)
-    .eq("published", true);
+    .eq("published", true)
+    .eq("global_active", true);
 
   if (!products || products.length !== productIds.length) {
     return NextResponse.json(
@@ -76,7 +79,11 @@ export async function POST(request: Request) {
         ? JSON.parse(product.variants)
         : product.variants;
 
-    const variant = enabledVariants(allVariants, product.enabled_colors).find(
+    const variant = enabledVariants(
+      allVariants,
+      product.enabled_colors,
+      product.global_enabled_colors,
+    ).find(
       (v: { variant_id: number }) => `${v.variant_id}` === item.variantKey,
     );
 

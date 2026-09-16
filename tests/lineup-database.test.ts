@@ -33,6 +33,12 @@ test("logo upload snapshots initial publication, later templates create drafts, 
         "utf8",
       ),
     );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20260916204818_global_product_availability.sql",
+        "utf8",
+      ),
+    );
     await db.exec(`insert into stores(id,name,slug) values ('00000000-0000-0000-0000-000000000001','Test','test');
       update product_templates set active=true where slug in ('hoodie','t-shirt');
       update stores set lineup_logo_path='logos/test.png' where slug='test';`);
@@ -122,6 +128,84 @@ test("logo upload snapshots initial publication, later templates create drafts, 
           draft.lease_token,
         ]),
       /lease expired/,
+    );
+    // A second store's hidden choice must survive global off/on changes too.
+    await db.exec(`insert into stores(id,name,slug) values ('00000000-0000-0000-0000-000000000002','Second','second');
+      insert into products(store_id,title,template_id,published,enabled_colors)
+      select '00000000-0000-0000-0000-000000000002','Locally hidden',id,false,array['White'] from product_templates where slug='beanie';`);
+    // Existing and newly generated products inherit global limits without losing local settings.
+    await db.exec(`update products set published=true, enabled_colors=array['Black'] where template_id is not null and title <> 'Locally hidden';
+      update product_templates set active=false, enabled_colors=array['White'] where slug='beanie';`);
+    let availability = await db.query(
+      `select published,enabled_colors,global_active,global_enabled_colors from products where template_id is not null and title <> 'Locally hidden'`,
+    );
+    assert.deepEqual(availability.rows, [
+      {
+        published: true,
+        enabled_colors: ["Black"],
+        global_active: false,
+        global_enabled_colors: ["White"],
+      },
+    ]);
+    await db.exec(
+      `update products set global_active=true,global_enabled_colors=null where template_id is not null`,
+    );
+    assert.deepEqual(
+      (
+        await db.query(
+          `select published,enabled_colors,global_active,global_enabled_colors from products where template_id is not null and title <> 'Locally hidden'`,
+        )
+      ).rows,
+      availability.rows,
+      "derived global fields cannot be forged",
+    );
+    await assert.rejects(
+      () =>
+        db.exec(
+          `update products set template_id=null where template_id is not null`,
+        ),
+      /association cannot be changed/,
+    );
+    await db.exec(
+      `update product_templates set active=true,enabled_colors=null where slug='beanie'`,
+    );
+    availability = await db.query(
+      `select published,enabled_colors,global_active,global_enabled_colors from products where template_id is not null and title <> 'Locally hidden'`,
+    );
+    assert.deepEqual(availability.rows, [
+      {
+        published: true,
+        enabled_colors: ["Black"],
+        global_active: true,
+        global_enabled_colors: null,
+      },
+    ]);
+    assert.deepEqual(
+      (
+        await db.query(
+          `select published,enabled_colors,global_active from products where title='Locally hidden'`,
+        )
+      ).rows,
+      [{ published: false, enabled_colors: ["White"], global_active: true }],
+    );
+    await db.exec(`update product_templates set active=false where slug='hoodie';
+      insert into products(store_id,title,template_id,published) select s.id,'Generated while disabled',t.id,true from stores s cross join product_templates t where s.slug='test' and t.slug='hoodie';`);
+    assert.equal(
+      (
+        await db.query<{ global_active: boolean }>(
+          `select global_active from products where title='Generated while disabled'`,
+        )
+      ).rows[0].global_active,
+      false,
+    );
+    assert.equal(
+      (
+        await db.query<{ global_active: boolean }>(
+          `select global_active from products where template_id is null`,
+        )
+      ).rows[0].global_active,
+      true,
+      "legacy products stay available independently",
     );
     await db.exec(`grant usage on schema auth to authenticated;grant execute on function auth.uid() to authenticated;
       set role authenticated;set request.jwt.claim.sub='00000000-0000-0000-0000-000000000012';`);

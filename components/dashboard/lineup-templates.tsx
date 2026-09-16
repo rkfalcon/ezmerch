@@ -1,5 +1,6 @@
 "use client";
 
+import { ProductColorPreview } from "@/components/dashboard/product-color-preview";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,10 @@ import type {
 
 export function LineupTemplates({
   templates,
+  previews = {},
 }: {
   templates: ProductTemplate[];
+  previews?: Record<string, { thumbnail_url: string | null; colors: string[] }>;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<ProductTemplate | null | undefined>();
@@ -36,7 +39,7 @@ export function LineupTemplates({
       setMessage(
         data.errors?.length
           ? `${data.activated} activated. ${data.errors.join("; ")}`
-          : "Saved. New products will generate automatically for stores with logos.",
+          : "Saved. Global availability applies to all stores. Store preferences are preserved.",
       );
       router.refresh();
     } catch (error) {
@@ -69,8 +72,9 @@ export function LineupTemplates({
       </div>
       <p className="text-sm text-muted-foreground">
         New stores start live. New additions to stores with products stay drafts
-        and notify the owner and admins. Editing a template affects future
-        generation only.
+        and notify the owner and admins. Product and color availability apply to
+        all stores immediately. Design and pricing edits apply to future
+        generation.
       </p>
       {message && (
         <p
@@ -98,7 +102,14 @@ export function LineupTemplates({
               <p className="text-xs text-muted-foreground">
                 {t.category} · {t.active ? "Active" : "Inactive"}
               </p>
-              <CardTitle className="text-base">{t.title}</CardTitle>
+              <ProductColorPreview
+                scope="global"
+                product={{
+                  id: t.id,
+                  title: t.title,
+                  thumbnail_url: previews[t.id]?.thumbnail_url ?? null,
+                }}
+              />
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="font-semibold">
@@ -106,10 +117,24 @@ export function LineupTemplates({
                 {(t.retail_price_cents / 100).toFixed(2)}
               </p>
               <p className="text-sm text-muted-foreground">
-                All available colors and sizes ·{" "}
-                {t.placement.replaceAll("_", " ")} ·{" "}
+                All available sizes · {t.placement.replaceAll("_", " ")} ·{" "}
                 {Math.round(Number(t.scale) * 100)}% logo scale
               </p>
+              {previews[t.id]?.colors && (
+                <div
+                  className="flex max-h-32 overflow-y-auto flex-wrap gap-1"
+                  aria-label="Global color options"
+                >
+                  {previews[t.id].colors.map((color) => (
+                    <span
+                      key={color}
+                      className={`rounded border px-2 py-1 text-xs ${!t.active || (t.enabled_colors != null && !t.enabled_colors.includes(color)) ? "text-muted-foreground line-through" : "bg-muted"}`}
+                    >
+                      {color}
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -118,16 +143,19 @@ export function LineupTemplates({
                 >
                   Edit
                 </Button>
-                {t.active && (
-                  <Button
-                    disabled={busy}
-                    size="sm"
-                    variant="outline"
-                    onClick={() => mutate({ action: "disable", id: t.id })}
-                  >
-                    Deactivate
-                  </Button>
-                )}
+                <Button
+                  disabled={busy}
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    mutate({
+                      action: t.active ? "disable" : "enable",
+                      id: t.id,
+                    })
+                  }
+                >
+                  {t.active ? "Disable globally" : "Enable globally"}
+                </Button>
               </div>
             </CardContent>
           </Card>

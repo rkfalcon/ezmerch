@@ -13,6 +13,7 @@ export interface ProductTemplate {
   scale: number;
   option_groups: string[];
   active: boolean;
+  enabled_colors?: string[] | null;
 }
 export interface CatalogVariant {
   id: number;
