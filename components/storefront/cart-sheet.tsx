@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import {
   Sheet,
   SheetContent,
@@ -9,7 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useCart } from "./cart-provider";
 
 export function CartSheet({
@@ -19,10 +20,11 @@ export function CartSheet({
   storeSlug: string;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
   const { items, removeItem, updateQuantity, totalCents } = useCart();
 
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger render={children as React.ReactElement}>{}</SheetTrigger>
       <SheetContent>
         <SheetHeader>
@@ -59,7 +61,7 @@ export function CartSheet({
                         updateQuantity(
                           item.productId,
                           item.variantKey,
-                          item.quantity - 1
+                          item.quantity - 1,
                         )
                       }
                     >
@@ -75,7 +77,7 @@ export function CartSheet({
                         updateQuantity(
                           item.productId,
                           item.variantKey,
-                          item.quantity + 1
+                          item.quantity + 1,
                         )
                       }
                     >
@@ -100,8 +102,12 @@ export function CartSheet({
                 <span>Subtotal</span>
                 <span>${(totalCents / 100).toFixed(2)}</span>
               </div>
-              <Link href={`/${storeSlug}/checkout`}>
-                <Button className="w-full">Checkout</Button>
+              <Link
+                href={`/${storeSlug}/checkout`}
+                onClick={() => setOpen(false)}
+                className={buttonVariants({ className: "w-full" })}
+              >
+                Checkout
               </Link>
             </div>
           </div>

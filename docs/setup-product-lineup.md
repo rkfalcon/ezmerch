@@ -142,3 +142,11 @@ header_color, header_text_color, and banner_text_color fields. Verification: all
 17 tests and the production build pass; browser checks confirmed real header link
 color inheritance, manual banner text, automatic reset, and mobile preview. A
 rolled-back database write confirmed persistence without changing store choices.
+
+Checkout drawer fix: clicking Checkout previously navigated within the shared
+store layout without closing its cart modal, leaving the checkout form behind an
+inert, blurred overlay. CartSheet now controls its open state and closes from the
+checkout link, which is a single styled anchor rather than a nested button/link.
+Browser reproduction confirmed the original live issue. Verification covers the
+product-to-checkout transition, editable checkout fields, and reopening the cart
+and clicking Checkout again on the same page at mobile width. No payment submitted.
