@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { LogoFileInput } from "./logo-file-input";
 
 interface Job {
   id: string;
@@ -23,6 +23,7 @@ export function LineupLogo({
   const [jobs, setJobs] = useState<Job[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [logoReady, setLogoReady] = useState(false);
   const [image, setImage] = useState(logoUrl);
   const completed = useRef(-1);
   useEffect(() => {
@@ -103,7 +104,9 @@ export function LineupLogo({
         <p className="text-sm text-muted-foreground">
           Upload once to create products from all active templates. Empty stores
           start live; additions to established stores start as drafts. A
-          replacement logo applies to future products.
+          replacement logo regenerates existing template products, preserving
+          your prices and enabled colors. Existing listings keep their previous
+          artwork until each replacement is ready.
         </p>
         <form onSubmit={upload} className="flex flex-wrap items-end gap-3">
           {image && (
@@ -113,20 +116,13 @@ export function LineupLogo({
               className="h-16 w-16 object-contain rounded border"
             />
           )}
-          <label className="min-w-0 flex-1 text-sm space-y-1">
-            Logo file
-            <Input
-              name="logo"
-              type="file"
-              required
-              accept="image/png,image/jpeg,image/webp"
-            />
-            <span className="text-xs text-muted-foreground">
-              PNG, JPG, or WebP, up to 4 MB. Transparent PNG works best.
-            </span>
-          </label>
-          <Button type="submit" disabled={busy}>
-            {busy ? "Working…" : "Upload logo & generate"}
+          <LogoFileInput disabled={busy} onReady={setLogoReady} />
+          <Button type="submit" disabled={busy || !logoReady}>
+            {busy
+              ? "Working…"
+              : image
+                ? "Replace logo & regenerate"
+                : "Upload logo & generate"}
           </Button>
         </form>
         {error && (

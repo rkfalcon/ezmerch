@@ -1,3 +1,5 @@
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { GenerationState } from "@/lib/lineup/types";
 import { StoreBanner } from "@/components/storefront/store-banner";
 import { enabledVariants } from "@/lib/product-colors";
 import { createClient } from "@/lib/supabase/server";
@@ -15,7 +17,7 @@ export default async function StorePage({
   const { data: store } = await supabase
     .from("stores")
     .select(
-      "id, name, slug, brand_colors, logo_url, banner_color, banner_subtitle, banner_text_color",
+      "id, name, slug, brand_colors, logo_url, banner_color, banner_subtitle, banner_text_color, selling_enabled",
     )
     .eq("slug", storeSlug)
     .single();
@@ -41,20 +43,66 @@ export default async function StorePage({
       ).length > 0,
   );
 
+  const previewCards: { id: string; title: string; image: string | null }[] =
+    [];
+  if (!store.selling_enabled) {
+    const { data: jobs } = await createAdminClient()
+      .from("product_generation_jobs")
+      .select(
+        "id,template_id,template_snapshot,state,product_templates!inner(active)",
+      )
+      .eq("store_id", store.id)
+      .eq("product_templates.active", true)
+      .eq("publish_on_complete", true)
+      .neq("status", "completed");
+    for (const job of jobs ?? []) {
+      if (allProducts?.some((p) => p.template_id === job.template_id)) continue;
+      const state = job.state as GenerationState;
+      previewCards.push({
+        id: job.id,
+        title: job.template_snapshot.title,
+        image:
+          state.batches?.flatMap((b) => b.images ?? b.downloadedImages ?? [])[0]
+            ?.url ?? null,
+      });
+    }
+  }
   return (
     <div>
       <StoreBanner store={store} />
 
       {/* Products Grid */}
       <section className="container mx-auto px-4 py-12">
-        {products && products.length > 0 ? (
+        {(products && products.length > 0) || previewCards.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {products.map((product) => (
+            {products?.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
                 storeSlug={storeSlug}
               />
+            ))}
+            {previewCards.map((p) => (
+              <article
+                key={p.id}
+                className="overflow-hidden rounded-xl border p-4"
+              >
+                {p.image ? (
+                  <img
+                    src={p.image}
+                    alt={`${p.title} preview with store logo`}
+                    className="aspect-square w-full object-contain"
+                  />
+                ) : (
+                  <div className="flex aspect-square items-center justify-center bg-muted text-sm">
+                    Preparing preview…
+                  </div>
+                )}
+                <h2 className="mt-3 font-medium">{p.title}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Preview · remaining colors are being prepared
+                </p>
+              </article>
             ))}
           </div>
         ) : (

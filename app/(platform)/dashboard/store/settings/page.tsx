@@ -1,3 +1,4 @@
+import { LineupLogo } from "@/components/dashboard/lineup-logo";
 import { StoreBannerForm } from "@/components/dashboard/store-banner-form";
 import { requireStoreOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -23,6 +24,7 @@ export default async function StoreSettingsPage() {
           Update your store&apos;s branding and shipping
         </p>
       </div>
+      <LineupLogo storeId={store.id} logoUrl={store.logo_url} />
       <StoreBannerForm store={store} />
       <StoreSettingsForm store={store} />
     </div>

@@ -65,6 +65,7 @@ export interface MockupBatch {
   downloadedImages?: MockupImage[];
 }
 export interface GenerationState {
+  previewPlanned?: boolean;
   productId?: number;
   variants?: CatalogVariant[];
   batches?: MockupBatch[];
@@ -75,6 +76,7 @@ export interface GenerationState {
   }[];
 }
 export interface GenerationJob {
+  generation_id?: string | null;
   id: string;
   store_id: string;
   template_id: string;

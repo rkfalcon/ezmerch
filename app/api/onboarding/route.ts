@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import { onboardingStore } from "@/lib/onboarding/store";
 import { onboardingDetails } from "@/lib/onboarding/validation";
-import { normalizeLogo } from "@/lib/lineup/artwork";
+import { prepareLogo } from "@/lib/lineup/logo-preparation";
 import { runLineupWorker } from "@/lib/lineup/worker";
 import type { GenerationState } from "@/lib/lineup/types";
 import { productDisplayImage } from "@/lib/product-colors";
@@ -37,12 +37,17 @@ export async function GET() {
       return {
         id: t.id,
         title: t.title,
-        image: product
-          ? productDisplayImage(product)
-          : (batches.flatMap((b) => b.images ?? [])[0]?.url ?? null),
-        ready: !!product,
+        image:
+          product && (!job || job.status === "completed")
+            ? productDisplayImage(product)
+            : (batches.flatMap((b) => b.images ?? b.downloadedImages ?? [])[0]
+                ?.url ?? null),
+        ready: !!product && (!job || job.status === "completed"),
         jobId: job?.id,
-        status: product ? "ready" : (job?.status ?? "pending"),
+        status:
+          product && (!job || job.status === "completed")
+            ? "ready"
+            : (job?.status ?? "pending"),
         completed: batches.filter((b) => b.images).length,
         total: batches.length,
       };
@@ -77,7 +82,10 @@ export async function POST(request: Request) {
     const file = form.get("logo");
     if (!(file instanceof File) || !file.size || file.size > 4 * 1024 * 1024)
       throw new Error("Choose a PNG, JPG, or WebP logo under 4 MB.");
-    const bytes = await normalizeLogo(Buffer.from(await file.arrayBuffer()));
+    const { bytes, warnings } = await prepareLogo(
+      Buffer.from(await file.arrayBuffer()),
+      form.get("removeBackground") !== "false",
+    );
     const base =
       name
         .toLowerCase()
@@ -105,7 +113,8 @@ export async function POST(request: Request) {
       throw new Error(
         "Your store already exists. Manage it from Products and Settings.",
       );
-    if (current.lineup_logo_path) return Response.json({ success: true });
+    if (current.lineup_logo_path)
+      return Response.json({ success: true, warnings });
     const path = `${id}/logos/${crypto.randomUUID()}.png`;
     const { error: uploadError } = await db.storage
       .from("lineup-assets")
@@ -130,7 +139,7 @@ export async function POST(request: Request) {
         console.error("Onboarding generation:", e.message),
       ),
     );
-    return Response.json({ success: true });
+    return Response.json({ success: true, warnings });
   } catch (error) {
     return Response.json(
       {

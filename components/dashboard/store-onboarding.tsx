@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { LineupLogo } from "./lineup-logo";
+import { LogoFileInput } from "./logo-file-input";
 import { Input } from "@/components/ui/input";
 interface Setup {
   store: {
@@ -34,8 +36,7 @@ export function StoreOnboarding() {
     submitted?: boolean;
   } | null>(null);
   const [checking, setChecking] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState("");
+  const [logoReady, setLogoReady] = useState(false);
   const load = useCallback(async () => {
     const response = await fetch("/api/onboarding", { cache: "no-store" });
     const data = await response.json();
@@ -55,15 +56,6 @@ export function StoreOnboarding() {
       clearInterval(timer);
     };
   }, [load]);
-  useEffect(() => {
-    if (!file) {
-      setPreview("");
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
   const checkStripe = useCallback(async () => {
     setChecking(true);
     setError("");
@@ -137,6 +129,7 @@ export function StoreOnboarding() {
   const store = setup?.store;
   const hasLogo = !!store?.logo_url;
   const ready = setup?.products.filter((p) => p.ready).length ?? 0;
+  const previews = setup?.products.filter((p) => p.image).length ?? 0;
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
@@ -209,29 +202,8 @@ export function StoreOnboarding() {
               disabled={busy}
             />
           </label>
-          <label className="block space-y-2">
-            Your logo
-            <Input
-              name="logo"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              required
-              disabled={busy}
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-            <span className="block text-sm text-muted-foreground">
-              PNG, JPG, or WebP, up to 4 MB. A transparent background works
-              best.
-            </span>
-          </label>
-          {preview && (
-            <img
-              src={preview}
-              alt="Your logo preview"
-              className="h-28 w-28 rounded border bg-gray-100 object-contain p-2"
-            />
-          )}
-          <Button type="submit" disabled={busy}>
+          <LogoFileInput disabled={busy} onReady={setLogoReady} />
+          <Button type="submit" disabled={busy || !logoReady}>
             {busy ? "Creating your store…" : "Create my store"}
           </Button>
           <p className="text-xs text-muted-foreground">
@@ -242,6 +214,14 @@ export function StoreOnboarding() {
       )}
       {store && hasLogo && (
         <>
+          <details className="rounded-xl border p-4">
+            <summary className="cursor-pointer font-medium">
+              Change your logo & regenerate products
+            </summary>
+            <div className="mt-4">
+              <LineupLogo storeId={store.id} logoUrl={store.logo_url} />
+            </div>
+          </details>
           <section className="rounded-xl border p-5 space-y-3">
             <h2 className="text-xl font-semibold">
               {store.selling_enabled
@@ -251,9 +231,10 @@ export function StoreOnboarding() {
                   : "Your branded products are on their way"}
             </h2>
             <p role="status">
-              {ready} of {setup!.products.length} products ready.{" "}
+              {previews} of {setup!.products.length} product previews ready.{" "}
+              {ready} products fully prepared.{" "}
               {ready < setup!.products.length &&
-                "Images appear as they finish. You can leave this page—we’ll keep working."}
+                "We create one preview color per product first, then prepare the remaining colors. You can leave this page—we’ll keep working."}
             </p>
             {!setup!.products.length && (
               <p>The product lineup is being prepared. Your logo is saved.</p>
@@ -361,10 +342,11 @@ export function StoreOnboarding() {
               ))}
             </div>
           </section>
-          {!!ready && (
+          {!!previews && (
             <section className="space-y-3">
               <h2 className="text-xl font-semibold">Your storefront</h2>
               <iframe
+                key={`${previews}-${ready}`}
                 title="Your storefront preview"
                 src={`/${store.slug}`}
                 className="h-[550px] w-full rounded-xl border"

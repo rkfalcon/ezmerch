@@ -21,7 +21,7 @@ export async function setProductPrice(
     const db = createAdminClient();
     const { data: product, error } = await db
       .from("products")
-      .select("store_id,variants")
+      .select("store_id,variants,updated_at")
       .eq("id", productId)
       .single();
     if (error || !product) throw new Error("Product not found");
@@ -36,8 +36,14 @@ export async function setProductPrice(
     const { error: saveError } = await db
       .from("products")
       .update({ variants: updated })
-      .eq("id", productId);
-    if (saveError) throw saveError;
+      .eq("id", productId)
+      .eq("updated_at", product.updated_at)
+      .select("id")
+      .single();
+    if (saveError)
+      throw new Error(
+        "This product changed while saving. Refresh and try the price again.",
+      );
     revalidatePath(`/dashboard/admin/stores/${store.id}`);
     revalidatePath(`/dashboard/admin/stores/${store.id}/products`);
     revalidatePath("/dashboard/store/products");

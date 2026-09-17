@@ -1,3 +1,4 @@
+import { previewFirstBatches } from "./preview-first";
 import { printfulPlacement } from "./placement";
 import { createAdminClient } from "../supabase/admin";
 import sharp from "sharp";
@@ -110,6 +111,7 @@ export async function advanceJob(
 ): Promise<void> {
   const template = job.template_snapshot;
   const state = job.state;
+  const generation = job.generation_id ?? job.id;
   if (!state.variants || !state.batches || !state.productId) {
     const productId = await client.resolve(template);
     const catalog = await client.product(productId);
@@ -134,8 +136,28 @@ export async function advanceJob(
     for (const option of template.option_groups)
       if (!files.option_groups?.includes(option))
         throw new Error(`Mockup style ${option} is no longer available`);
-    await saveStep(db, job, { productId, variants, batches });
+    await saveStep(db, job, {
+      productId,
+      variants,
+      batches: previewFirstBatches(batches, variants, template.enabled_colors),
+      previewPlanned: true,
+    });
     return;
+  }
+  if (!state.previewPlanned) {
+    if (
+      state.batches.every((b) => !b.taskKey && !b.images && !b.downloadedImages)
+    ) {
+      state.batches = previewFirstBatches(
+        state.batches,
+        state.variants,
+        template.enabled_colors,
+      );
+      state.previewPlanned = true;
+      await saveStep(db, job, state);
+      return;
+    }
+    state.previewPlanned = true;
   }
   const batch = state.batches.find((b) => !b.images);
   if (batch) {
@@ -156,7 +178,7 @@ export async function advanceJob(
       );
       batch.artworkUrl = await upload(
         db,
-        `${job.store_id}/${job.id}/artwork-${batch.printfile.printfile_id}.png`,
+        `${job.store_id}/${generation}/artwork-${batch.printfile.printfile_id}.png`,
         artwork,
         "image/png",
       );
@@ -195,7 +217,7 @@ export async function advanceJob(
       const bytes = await downloadMockup(mockup.mockup_url);
       const url = await upload(
         db,
-        `${job.store_id}/${job.id}/mockup-${state.batches.indexOf(batch)}-${index}.jpg`,
+        `${job.store_id}/${generation}/mockup-${state.batches.indexOf(batch)}-${index}.jpg`,
         bytes,
         "image/jpeg",
       );
@@ -224,7 +246,7 @@ export async function advanceJob(
   if (chunk.length) {
     // Printful caps a sync product at 100 variants. Each chunk gets a stable ID;
     // all chunks still become one EZMerch product with catalog variant IDs intact.
-    const externalId = `ezmerch-${job.id}${chunkIndex ? `-${chunkIndex + 1}` : ""}`;
+    const externalId = `ezmerch-${generation}${chunkIndex ? `-${chunkIndex + 1}` : ""}`;
     const sync = await client.ensureSyncProduct(externalId, {
       sync_product: { name: template.title, thumbnail: images[0].url },
       sync_variants: chunk.map((v) => ({
