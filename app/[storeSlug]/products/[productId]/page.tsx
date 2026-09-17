@@ -1,5 +1,6 @@
 "use client";
 
+import { inStock } from "@/lib/supplier-stock";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -46,7 +47,7 @@ export default function ProductDetailPage() {
       const { data } = await supabase
         .from("products")
         .select(
-          "id, title, description, thumbnail_url, variants, enabled_colors, global_enabled_colors, default_color, stores!inner(slug)",
+          "id, title, description, thumbnail_url, variants, supplier_stock, enabled_colors, global_enabled_colors, default_color, stores!inner(slug)",
         )
         .eq("id", productId)
         .eq("published", true)
@@ -61,7 +62,7 @@ export default function ProductDetailPage() {
             ? JSON.parse(data.variants)
             : data.variants;
         const variants = enabledVariants(
-          allVariants,
+          inStock(allVariants, data.supplier_stock),
           data.enabled_colors,
           data.global_enabled_colors,
         );

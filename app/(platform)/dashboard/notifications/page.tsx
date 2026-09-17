@@ -22,7 +22,7 @@ export default async function NotificationsPage() {
         </p>
       ) : !data?.length ? (
         <p className="text-muted-foreground">
-          You’re all caught up. New draft products will appear here.
+          You’re all caught up. Product and order updates will appear here.
         </p>
       ) : (
         <ul className="space-y-3">
@@ -41,7 +41,7 @@ export default async function NotificationsPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <Link href={n.href} className="text-sm underline">
-                    Review products
+                    View details
                   </Link>
                   {!n.read_at && (
                     <form action={markNotificationRead}>

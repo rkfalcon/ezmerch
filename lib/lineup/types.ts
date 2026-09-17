@@ -1,4 +1,7 @@
+import type { SupplierStock } from "../supplier-stock";
 export interface ProductTemplate {
+  supplier_stock?: SupplierStock | null;
+  stock_check_error?: string | null;
   id: string;
   slug: string;
   title: string;

@@ -1,5 +1,6 @@
 "use client";
 
+import { SupplierStockStatus } from "./supplier-stock-status";
 import {
   ColorAvailabilityPills,
   enabledProductClass,
@@ -123,6 +124,7 @@ export function LineupTemplates({
               />
             </CardHeader>
             <CardContent className="space-y-3">
+              <SupplierStockStatus stock={t.supplier_stock} error={t.stock_check_error} />
               {previews[t.id]?.catalog && <p className="text-xs text-muted-foreground">Catalog preview · branded mockup appears after generation finishes.</p>}
               <p className="font-semibold">
                 {Object.keys(t.size_prices).length ? "From " : ""}$

@@ -3,6 +3,13 @@ import { createAdminClient } from "../supabase/admin";
 export async function deliverLineupEmails(limit = 5) {
   // Keep queued notifications untouched while email delivery is deferred.
   if (process.env.LINEUP_EMAIL_ENABLED !== "true") return { sent: 0 };
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.NOTIFICATION_FROM_EMAIL;
+  const origin = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!apiKey || !from || !origin)
+    throw new Error(
+      "Email delivery is enabled but Resend configuration is incomplete",
+    );
   const db = createAdminClient();
   let sent = 0;
   for (let index = 0; index < limit; index++) {
@@ -12,13 +19,6 @@ export async function deliverLineupEmails(limit = 5) {
     const email = claims?.[0];
     if (!email) break;
     try {
-      const apiKey = process.env.RESEND_API_KEY;
-      const from = process.env.NOTIFICATION_FROM_EMAIL;
-      const origin = process.env.NEXT_PUBLIC_SITE_URL;
-      if (!apiKey || !from || !origin)
-        throw new Error(
-          "Configure RESEND_API_KEY, NOTIFICATION_FROM_EMAIL, and NEXT_PUBLIC_SITE_URL to deliver email",
-        );
       const { data: notification, error } = await db
         .from("notifications")
         .select("*")
@@ -43,7 +43,7 @@ export async function deliverLineupEmails(limit = 5) {
           from,
           to: [user.user.email],
           subject: notification.title,
-          text: `${notification.message}\n\nReview your draft products: ${new URL(notification.href, origin).href}\n\nProducts remain drafts until you publish them.`,
+          text: `${notification.message}\n\nView details: ${new URL(notification.href, origin).href}`,
         }),
       });
       if (!response.ok)
