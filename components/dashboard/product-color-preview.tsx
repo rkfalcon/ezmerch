@@ -23,6 +23,7 @@ interface Details extends ProductSummary {
   default_color?: string | null;
   global_active?: boolean;
   global_enabled_colors?: string[] | null;
+  generation_progress?: string | null;
   preview_source?: "sample" | "catalog";
 }
 
@@ -180,6 +181,7 @@ function ColorEditor({
               : "Catalog image. A sample logo mockup will appear after a store generates this product."}
           </p>
         )}
+        {details.generation_progress && <p role="status" className="mb-2 text-sm">{details.generation_progress}</p>}
         {details.global_active === false && (
           <p className="mb-2 text-sm">
             This product is disabled globally. Your store choices are preserved.
