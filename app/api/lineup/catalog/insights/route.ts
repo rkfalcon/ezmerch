@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { lineupAdmin } from "@/lib/lineup/access";
 import { PrintfulClient, PrintfulError } from "@/lib/lineup/printful";
-import { startingCost, fastestRate, type CatalogInsight } from "@/lib/lineup/catalog-insights";
+import { startingCost, fastestRate, availableCatalogColors, type CatalogInsight } from "@/lib/lineup/catalog-insights";
 
 // Read-only quotes, cached for this Printful store and destination. No order is created.
 const productInfo = unstable_cache(async (id: number, store: string) => {
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       const store = process.env.PRINTFUL_STORE_ID ?? "";
       const { product, variants } = await productInfo(id, store);
       const price = startingCost(variants);
-      const entry: CatalogInsight = { price, currency: (product as typeof product & { currency?: string }).currency ?? "USD", delivery: null };
+      const entry: CatalogInsight = { colors: availableCatalogColors(variants), price, currency: (product as typeof product & { currency?: string }).currency ?? "USD", delivery: null };
       results[id] = entry;
       const variant = variants.find((v) => v.in_stock && Number(v.price) === price);
       if (variant) {
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     } catch (error) {
       if (error instanceof PrintfulError && error.status === 429) limited = true;
       // Preserve a price even if a delivery estimate could not be retrieved.
-      results[id] ??= { price: null, currency: "USD", delivery: null };
+      results[id] ??= { colors: null, price: null, currency: "USD", delivery: null };
     }
   }));
   return Response.json({ products: results, limited });

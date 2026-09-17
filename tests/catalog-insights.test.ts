@@ -13,3 +13,18 @@ test("delivery sorting prefers earliest arrival and puts unavailable quotes last
   assert.ok(compareDelivery(insight,undefined)<0);
   assert.ok(compareDelivery(undefined,insight)>0);
 });
+
+test("swatches deduplicate sizes, omit unavailable colors, and retain two-tone colors", async () => {
+  const { availableCatalogColors } = await import("../lib/lineup/catalog-insights");
+  assert.deepEqual(availableCatalogColors([
+    {in_stock:true,color:"Black",color_code:"#000000"},
+    {in_stock:true,color:"Black",color_code:"#000000"},
+    {in_stock:false,color:"Red",color_code:"#ff0000"},
+    {in_stock:true,color:"Black / White",color_code:"#000000",color_code2:"#ffffff"},
+    {in_stock:true,color:"Pattern",color_code:"invalid"},
+  ]), [
+    {name:"Black",hex:"#000000",secondary:null},
+    {name:"Black / White",hex:"#000000",secondary:"#ffffff"},
+    {name:"Pattern",hex:null,secondary:null},
+  ]);
+});

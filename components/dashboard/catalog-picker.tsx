@@ -92,6 +92,13 @@ export function CatalogPicker({ products, selectedId, onSelect }: {
             className={`rounded-lg border p-3 text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 ${String(p.id) === selectedId ? "border-primary bg-muted ring-2 ring-primary" : "bg-background"}`}>
             {p.image ? <img src={p.image} alt={p.title} loading="lazy" className="mb-3 aspect-square w-full rounded-md bg-white object-contain" /> : <div className="mb-3 flex aspect-square items-center justify-center rounded-md bg-muted text-sm">Image unavailable</div>}
             <span className="block text-sm font-medium">{p.title}</span>
+            <span className="mt-2 flex flex-wrap gap-1" aria-label="Available colors">
+              {!insights[p.id] ? <span className="text-xs text-muted-foreground">Loading colors…</span> : insights[p.id].colors == null ? <span className="text-xs text-muted-foreground">Colors unavailable</span> : insights[p.id].colors!.length ? insights[p.id].colors!.map((color) => (
+                <span key={color.name} title={color.name} role="img" aria-label={color.name}
+                  className="inline-block h-4 w-4 rounded-sm border border-black/25"
+                  style={{ background: color.hex ? color.secondary ? `linear-gradient(135deg, ${color.hex} 50%, ${color.secondary} 50%)` : color.hex : "repeating-linear-gradient(45deg, #ddd, #ddd 3px, #fff 3px, #fff 6px)" }} />
+              )) : <span className="text-xs text-muted-foreground">No in-stock color variants</span>}
+            </span>
             <span className="mt-2 block text-sm font-semibold">{!insights[p.id] ? "Loading price…" : insights[p.id].price === null ? "Price unavailable" : `From ${new Intl.NumberFormat("en-US", { style: "currency", currency: insights[p.id].currency }).format(insights[p.id].price!)}`}</span>
             <span className="mt-1 block text-xs" title={insights[p.id]?.delivery?.variant}>{!insights[p.id] ? "Loading delivery…" : insights[p.id].delivery ? `Est. ${insights[p.id].delivery!.minDate} – ${insights[p.id].delivery!.maxDate}` : "Delivery estimate unavailable"}</span>
             <span className="mt-1 block text-xs text-muted-foreground">{String(p.id) === selectedId ? "Selected" : "Select product"}</span>
