@@ -131,7 +131,7 @@ test("admins are notified once for signup, store create, and store claim", async
     assert.equal(created.length, 2);
     assert.equal(
       created[0].href,
-      "/dashboard/admin/stores/00000000-0000-0000-0000-0000000000s1",
+      "/dashboard/admin/stores/00000000-0000-0000-0000-0000000000d1",
     );
     assert.match(
       created[0].message,
