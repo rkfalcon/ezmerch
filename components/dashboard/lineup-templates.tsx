@@ -27,7 +27,7 @@ export function LineupTemplates({
   previews = {},
 }: {
   templates: ProductTemplate[];
-  previews?: Record<string, { thumbnail_url: string | null; colors: string[] }>;
+  previews?: Record<string, { thumbnail_url: string | null; colors: string[]; catalog?: boolean }>;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<ProductTemplate | null | undefined>();
@@ -123,6 +123,7 @@ export function LineupTemplates({
               />
             </CardHeader>
             <CardContent className="space-y-3">
+              {previews[t.id]?.catalog && <p className="text-xs text-muted-foreground">Catalog preview · branded mockup appears after generation finishes.</p>}
               <p className="font-semibold">
                 {Object.keys(t.size_prices).length ? "From " : ""}$
                 {(t.retail_price_cents / 100).toFixed(2)}

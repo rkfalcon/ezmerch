@@ -195,9 +195,9 @@ function ColorEditor({
             />
           ) : (
             <div className="p-6 text-center text-muted-foreground">
-              {product.thumbnail_url && (
+              {(details.thumbnail_url ?? product.thumbnail_url) && (
                 <img
-                  src={product.thumbnail_url}
+                  src={details.thumbnail_url ?? product.thumbnail_url!}
                   alt={`${product.title}, general preview`}
                   className="w-full object-contain"
                 />

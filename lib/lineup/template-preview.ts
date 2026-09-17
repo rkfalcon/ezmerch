@@ -36,7 +36,8 @@ export async function templatePreview(id: string) {
     retail_price: v.price,
     image_url:
       sampleVariants.find((s) => s.variant_id === v.id)?.image_url ??
-      sampleVariants.find((s) => colorName(s) === colorName(v))?.image_url,
+      sampleVariants.find((s) => colorName(s) === colorName(v))?.image_url ??
+      (!sample ? v.image : undefined),
   }));
   return {
     ...template,

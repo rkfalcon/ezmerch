@@ -16,6 +16,7 @@ export interface ProductTemplate {
   enabled_colors?: string[] | null;
 }
 export interface CatalogVariant {
+  image?: string;
   id: number;
   product_id: number;
   name: string;
