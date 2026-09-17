@@ -232,9 +232,6 @@ test("admins are notified once for signup, store create, and store claim", async
       (await db.query("select * from notification_emails")).rows.length,
     );
 
-    await db.exec(
-      `update orders set status='fulfillment_failed' where false`,
-    );
     assert.equal(
       (
         await db.query<{ allowed: boolean }>(
