@@ -1,3 +1,5 @@
+import { StoreBanner } from "@/components/storefront/store-banner";
+import { enabledVariants } from "@/lib/product-colors";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { ProductCard } from "@/components/storefront/product-card";
@@ -12,47 +14,36 @@ export default async function StorePage({
 
   const { data: store } = await supabase
     .from("stores")
-    .select("id, name, slug, brand_colors, logo_url")
+    .select(
+      "id, name, slug, brand_colors, logo_url, banner_color, banner_subtitle, banner_text_color",
+    )
     .eq("slug", storeSlug)
     .single();
 
   if (!store) notFound();
 
-  const { data: products } = await supabase
+  const { data: allProducts } = await supabase
     .from("products")
     .select("*")
     .eq("store_id", store.id)
     .eq("published", true)
+    .eq("global_active", true)
     .order("created_at", { ascending: false });
+
+  const products = allProducts?.filter(
+    (product) =>
+      enabledVariants(
+        typeof product.variants === "string"
+          ? JSON.parse(product.variants)
+          : product.variants,
+        product.enabled_colors,
+        product.global_enabled_colors,
+      ).length > 0,
+  );
 
   return (
     <div>
-      {/* Hero */}
-      <section
-        className="py-16 text-center"
-        style={{ backgroundColor: store.brand_colors.primary + "10" }}
-      >
-        <div className="container mx-auto px-4">
-          {store.logo_url ? (
-            <img
-              src={store.logo_url}
-              alt={store.name}
-              className="mx-auto mb-4 h-20 w-20 rounded-full object-cover"
-            />
-          ) : (
-            <div
-              className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full text-3xl font-bold text-white"
-              style={{ backgroundColor: store.brand_colors.primary }}
-            >
-              {store.name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <h1 className="text-3xl font-bold">{store.name}</h1>
-          <p className="mt-2 text-muted-foreground">
-            Shop our collection of custom merchandise
-          </p>
-        </div>
-      </section>
+      <StoreBanner store={store} />
 
       {/* Products Grid */}
       <section className="container mx-auto px-4 py-12">

@@ -1,3 +1,4 @@
+import { StoreBannerForm } from "@/components/dashboard/store-banner-form";
 import { requireStoreOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { StoreSettingsForm } from "@/components/dashboard/store-settings-form";
@@ -6,11 +7,9 @@ export default async function StoreSettingsPage() {
   const user = await requireStoreOwner();
   const supabase = await createClient();
 
-  const { data: store } = await supabase
-    .from("stores")
-    .select("*")
-    .eq("id", user.storeId)
-    .single();
+  let query = supabase.from("stores").select("*").eq("owner_id", user.id);
+  if (user.storeId) query = query.eq("id", user.storeId);
+  const { data: store } = await query.order("created_at").limit(1).single();
 
   if (!store) {
     return <div>Store not found</div>;
@@ -24,6 +23,7 @@ export default async function StoreSettingsPage() {
           Update your store&apos;s branding and shipping
         </p>
       </div>
+      <StoreBannerForm store={store} />
       <StoreSettingsForm store={store} />
     </div>
   );

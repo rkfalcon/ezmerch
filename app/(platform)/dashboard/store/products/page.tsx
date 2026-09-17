@@ -1,5 +1,12 @@
+import { productDisplayImage } from "@/lib/product-colors";
+import {
+  StoreProductColorPills,
+  storeProductEnabled,
+  enabledProductClass,
+  disabledProductClass,
+} from "@/components/dashboard/product-availability";
 import { requireStoreOwner } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,15 +18,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ProductPublishToggle } from "@/components/dashboard/product-publish-toggle";
+import { ProductColorPreview } from "@/components/dashboard/product-color-preview";
 
 export default async function StoreOwnerProductsPage() {
   const user = await requireStoreOwner();
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+  // Resolve current ownership from the database, including sessions whose role
+  // claim has no store ID. Never trust a client-provided store ID here.
+  const { data: stores, error: storesError } = await supabase
+    .from("stores")
+    .select("id")
+    .eq("owner_id", user.id);
+  if (storesError) throw storesError;
 
   const { data: products } = await supabase
     .from("products")
     .select("*")
-    .eq("store_id", user.storeId)
+    .in(
+      "store_id",
+      (stores ?? []).map((store) => store.id),
+    )
     .order("created_at", { ascending: false });
 
   return (
@@ -27,7 +45,9 @@ export default async function StoreOwnerProductsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">My Products</h1>
-          <p className="text-muted-foreground">Manage your store&apos;s products</p>
+          <p className="text-muted-foreground">
+            Manage your store&apos;s products
+          </p>
         </div>
         <Link href="/dashboard/store/products/new">
           <Button>Add Product</Button>
@@ -51,15 +71,30 @@ export default async function StoreOwnerProductsPage() {
                   ? product.variants.length
                   : 0;
                 return (
-                  <TableRow key={product.id}>
+                  <TableRow
+                    key={product.id}
+                    className={
+                      storeProductEnabled(product)
+                        ? enabledProductClass
+                        : disabledProductClass
+                    }
+                  >
                     <TableCell className="font-medium">
-                      {product.title}
+                      <ProductColorPreview
+                        product={{
+                          id: product.id,
+                          title: product.title,
+                          thumbnail_url: productDisplayImage(product),
+                        }}
+                      />
+                      <StoreProductColorPills product={product} />
                     </TableCell>
                     <TableCell>{variantCount} variants</TableCell>
                     <TableCell>
                       <ProductPublishToggle
                         productId={product.id}
                         published={product.published}
+                        globalActive={product.global_active}
                       />
                     </TableCell>
                     <TableCell>
@@ -70,7 +105,10 @@ export default async function StoreOwnerProductsPage() {
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                <TableCell
+                  colSpan={4}
+                  className="text-center py-8 text-muted-foreground"
+                >
                   No products yet. Add your first product to get started.
                 </TableCell>
               </TableRow>

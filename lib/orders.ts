@@ -5,7 +5,7 @@ import type { PrintfulRecipient } from "./printful-types";
 function getAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 }
 
@@ -117,7 +117,8 @@ async function triggerPrintfulFulfillment(orderId: string, data: OrderData) {
       })
       .eq("id", orderId);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Printful order failed";
+    const message =
+      err instanceof Error ? err.message : "Printful order failed";
 
     // Update order with failure info
     await supabase
@@ -157,27 +158,53 @@ export async function retryFulfillment(orderId: string) {
     .eq("id", orderId);
 
   // Re-fetch product data for sync variant IDs
-  const productIds = [...new Set(order.order_items.map((i: { product_id: string }) => i.product_id))];
+  const productIds = [
+    ...new Set(
+      order.order_items.map((i: { product_id: string }) => i.product_id),
+    ),
+  ];
   const { data: products } = await supabase
     .from("products")
     .select("id, variants")
     .in("id", productIds);
 
   const productVariantMap = new Map<string, number>();
-  products?.forEach((p: { id: string; variants: Array<{ variant_id: number }> | string }) => {
-    const variants = typeof p.variants === "string" ? JSON.parse(p.variants) : p.variants;
-    variants.forEach((v: { variant_id: number }) => {
-      productVariantMap.set(`${p.id}-${v.variant_id}`, v.variant_id);
-    });
-  });
+  products?.forEach(
+    (p: {
+      id: string;
+      variants:
+        | Array<{ variant_id: number; sync_variant_id?: number }>
+        | string;
+    }) => {
+      const variants =
+        typeof p.variants === "string" ? JSON.parse(p.variants) : p.variants;
+      variants.forEach(
+        (v: { variant_id: number; sync_variant_id?: number }) => {
+          productVariantMap.set(
+            `${p.id}-${v.variant_id}`,
+            v.sync_variant_id ?? v.variant_id,
+          );
+        },
+      );
+    },
+  );
 
-  const items = order.order_items.map((item: { product_id: string; variant_key: string; quantity: number; price_cents: number }) => ({
-    productId: item.product_id,
-    variantKey: item.variant_key,
-    quantity: item.quantity,
-    priceCents: item.price_cents,
-    printfulSyncVariantId: parseInt(item.variant_key, 10),
-  }));
+  const items = order.order_items.map(
+    (item: {
+      product_id: string;
+      variant_key: string;
+      quantity: number;
+      price_cents: number;
+    }) => ({
+      productId: item.product_id,
+      variantKey: item.variant_key,
+      quantity: item.quantity,
+      priceCents: item.price_cents,
+      printfulSyncVariantId:
+        productVariantMap.get(`${item.product_id}-${item.variant_key}`) ??
+        parseInt(item.variant_key, 10),
+    }),
+  );
 
   await triggerPrintfulFulfillment(orderId, {
     ...order,

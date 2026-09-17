@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getUserWithRole } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { lineupStoreAccess } from "@/lib/lineup/access";
 
 export async function createProduct(formData: FormData) {
   const user = await getUserWithRole();
@@ -104,26 +106,47 @@ export async function updateProduct(productId: string, formData: FormData) {
   return { success: true };
 }
 
-export async function toggleProductPublished(productId: string, published: boolean) {
+export async function toggleProductPublished(
+  productId: string,
+  published: boolean,
+) {
   const user = await getUserWithRole();
   if (!user || (!user.isAdmin && !user.isStoreOwner)) {
     return { error: "Unauthorized" };
   }
 
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from("products")
-    .update({ published })
-    .eq("id", productId);
-
-  if (error) {
-    return { error: error.message };
+  try {
+    const supabase = createAdminClient();
+    const { data: product, error: lookupError } = await supabase
+      .from("products")
+      .select("store_id,variants,thumbnail_url,template_id,global_active")
+      .eq("id", productId)
+      .single();
+    if (lookupError || !product) return { error: "Product not found" };
+    const { store } = await lineupStoreAccess(product.store_id);
+    if (published && !product.global_active)
+      return { error: "This product is disabled globally by the admin" };
+    if (
+      published &&
+      product.template_id &&
+      (!product.thumbnail_url ||
+        !Array.isArray(product.variants) ||
+        !product.variants.length)
+    )
+      return { error: "This product is not ready to publish" };
+    const { error } = await supabase
+      .from("products")
+      .update({ published })
+      .eq("id", productId);
+    if (error) return { error: error.message };
+    revalidatePath(`/dashboard/admin/stores/${store.id}`);
+    revalidatePath(`/dashboard/admin/stores/${store.id}/products`);
+    revalidatePath("/dashboard/store/products");
+    revalidatePath(`/${store.slug}`, "layout");
+    return { success: true };
+  } catch {
+    return { error: "You cannot change this product" };
   }
-
-  revalidatePath("/dashboard/admin/stores");
-  revalidatePath("/dashboard/store/products");
-  return { success: true };
 }
 
 export async function deleteProduct(productId: string) {

@@ -1,24 +1,42 @@
 import Link from "next/link";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
+import { enabledVariants, productDisplayImage } from "@/lib/product-colors";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 
 interface ProductCardProps {
   product: {
     id: string;
     title: string;
     thumbnail_url: string | null;
-    variants: Array<{ retail_price: string }> | string;
+    variants:
+      | Array<{
+          retail_price: string;
+          color?: string | null;
+          image_url?: string;
+        }>
+      | string;
+    default_color?: string | null;
+    enabled_colors?: string[] | null;
+    global_enabled_colors?: string[] | null;
   };
   storeSlug: string;
 }
 
 export function ProductCard({ product, storeSlug }: ProductCardProps) {
-  const variants = typeof product.variants === "string"
-    ? JSON.parse(product.variants)
-    : product.variants;
+  const allVariants: Array<{
+    retail_price: string;
+    color?: string | null;
+    image_url?: string;
+  }> =
+    typeof product.variants === "string"
+      ? JSON.parse(product.variants)
+      : product.variants;
+  const variants = enabledVariants(
+    allVariants,
+    product.enabled_colors,
+    product.global_enabled_colors,
+  );
+  if (!variants.length) return null;
+  const thumbnail = productDisplayImage(product);
 
   const prices = variants
     .map((v: { retail_price: string }) => parseFloat(v.retail_price))
@@ -36,11 +54,11 @@ export function ProductCard({ product, storeSlug }: ProductCardProps) {
     <Link href={`/${storeSlug}/products/${product.id}`}>
       <Card className="overflow-hidden transition-shadow hover:shadow-md h-full">
         <div className="aspect-square bg-muted flex items-center justify-center">
-          {product.thumbnail_url ? (
+          {thumbnail ? (
             <img
-              src={product.thumbnail_url}
+              src={thumbnail}
               alt={product.title}
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
             />
           ) : (
             <span className="text-4xl text-muted-foreground">

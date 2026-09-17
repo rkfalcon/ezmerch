@@ -16,7 +16,9 @@ export default async function StoreLayout({
 
   const { data: store } = await supabase
     .from("stores")
-    .select("id, name, slug, brand_colors, logo_url")
+    .select(
+      "id, name, slug, brand_colors, logo_url, header_color, header_text_color",
+    )
     .eq("slug", storeSlug)
     .single();
 

@@ -1,3 +1,11 @@
+import { productDisplayImage } from "@/lib/product-colors";
+import { StoreBannerForm } from "@/components/dashboard/store-banner-form";
+import {
+  StoreProductColorPills,
+  storeProductEnabled,
+  enabledProductClass,
+  disabledProductClass,
+} from "@/components/dashboard/product-availability";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
@@ -19,18 +27,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StoreForm } from "@/components/dashboard/store-form";
 import { ClaimLinkCard } from "@/components/dashboard/claim-link-card";
 import { ProductPublishToggle } from "@/components/dashboard/product-publish-toggle";
 import { RefundButton } from "@/components/dashboard/refund-button";
+import { LineupLogo } from "@/components/dashboard/lineup-logo";
+import { LineupProductPrice } from "@/components/dashboard/lineup-product-price";
+import { ProductColorPreview } from "@/components/dashboard/product-color-preview";
 
-const statusColors: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
+const statusColors: Record<
+  string,
+  "default" | "secondary" | "outline" | "destructive"
+> = {
   pending: "secondary",
   paid: "default",
   fulfilling: "default",
@@ -74,10 +83,17 @@ export default async function AdminStoreDetailPage({
 
   // Stats
   const totalOrders = orders?.length ?? 0;
-  const pendingOrders = orders?.filter((o) => ["paid", "fulfilling"].includes(o.status)).length ?? 0;
+  const pendingOrders =
+    orders?.filter((o) => ["paid", "fulfilling"].includes(o.status)).length ??
+    0;
   const totalRevenue = orders?.reduce((sum, o) => sum + o.total_cents, 0) ?? 0;
-  const platformFees = orders?.reduce((sum, o) => sum + o.platform_fee_cents, 0) ?? 0;
-  const ownerEarnings = orders?.reduce((sum, o) => sum + (o.subtotal_cents - o.platform_fee_cents), 0) ?? 0;
+  const platformFees =
+    orders?.reduce((sum, o) => sum + o.platform_fee_cents, 0) ?? 0;
+  const ownerEarnings =
+    orders?.reduce(
+      (sum, o) => sum + (o.subtotal_cents - o.platform_fee_cents),
+      0,
+    ) ?? 0;
 
   return (
     <div>
@@ -98,7 +114,9 @@ export default async function AdminStoreDetailPage({
             <Badge variant="outline">Stripe Connected</Badge>
           )}
           <Link href={`/${store.slug}`} target="_blank">
-            <Button variant="outline" size="sm">View Storefront</Button>
+            <Button variant="outline" size="sm">
+              View Storefront
+            </Button>
           </Link>
         </div>
       </div>
@@ -109,10 +127,13 @@ export default async function AdminStoreDetailPage({
         </div>
       )}
 
+      <LineupLogo storeId={storeId} logoUrl={store.logo_url} />
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="products">Products ({products?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="products">
+            Products ({products?.length ?? 0})
+          </TabsTrigger>
           <TabsTrigger value="orders">Orders ({totalOrders})</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
@@ -135,13 +156,17 @@ export default async function AdminStoreDetailPage({
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>Total Revenue</CardDescription>
-                <CardTitle className="text-3xl">${(totalRevenue / 100).toFixed(2)}</CardTitle>
+                <CardTitle className="text-3xl">
+                  ${(totalRevenue / 100).toFixed(2)}
+                </CardTitle>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardDescription>Platform Fees</CardDescription>
-                <CardTitle className="text-3xl">${(platformFees / 100).toFixed(2)}</CardTitle>
+                <CardTitle className="text-3xl">
+                  ${(platformFees / 100).toFixed(2)}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-xs text-muted-foreground">
@@ -157,9 +182,20 @@ export default async function AdminStoreDetailPage({
                 <CardTitle className="text-base">Store Owner</CardTitle>
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
-                <p><span className="text-muted-foreground">Email:</span> {store.owner_email ?? "—"}</p>
-                <p><span className="text-muted-foreground">Claimed:</span> {store.claimed_at ? new Date(store.claimed_at).toLocaleString() : "—"}</p>
-                <p><span className="text-muted-foreground">Stripe:</span> {store.stripe_account_id ?? "Not connected"}</p>
+                <p>
+                  <span className="text-muted-foreground">Email:</span>{" "}
+                  {store.owner_email ?? "—"}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Claimed:</span>{" "}
+                  {store.claimed_at
+                    ? new Date(store.claimed_at).toLocaleString()
+                    : "—"}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Stripe:</span>{" "}
+                  {store.stripe_account_id ?? "Not connected"}
+                </p>
               </CardContent>
             </Card>
           )}
@@ -190,22 +226,54 @@ export default async function AdminStoreDetailPage({
                       ? product.variants.length
                       : 0;
                     return (
-                      <TableRow key={product.id}>
-                        <TableCell className="font-medium">{product.title}</TableCell>
+                      <TableRow
+                        key={product.id}
+                        className={
+                          storeProductEnabled(product)
+                            ? enabledProductClass
+                            : disabledProductClass
+                        }
+                      >
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <ProductColorPreview
+                                product={{
+                                  id: product.id,
+                                  title: product.title,
+                                  thumbnail_url: productDisplayImage(product),
+                                }}
+                              />
+                              <StoreProductColorPills product={product} />
+                              <div className="mt-2">
+                                <LineupProductPrice
+                                  productId={product.id}
+                                  variants={product.variants}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
                         <TableCell>{variantCount} variants</TableCell>
                         <TableCell>
                           <ProductPublishToggle
                             productId={product.id}
                             published={product.published}
+                            globalActive={product.global_active}
                           />
                         </TableCell>
-                        <TableCell>{new Date(product.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          {new Date(product.created_at).toLocaleDateString()}
+                        </TableCell>
                       </TableRow>
                     );
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <TableCell
+                      colSpan={4}
+                      className="text-center py-8 text-muted-foreground"
+                    >
                       No products yet.
                     </TableCell>
                   </TableRow>
@@ -235,10 +303,14 @@ export default async function AdminStoreDetailPage({
                 {orders && orders.length > 0 ? (
                   orders.map((order) => (
                     <TableRow key={order.id}>
-                      <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        {new Date(order.created_at).toLocaleDateString()}
+                      </TableCell>
                       <TableCell>{order.customer_email}</TableCell>
                       <TableCell>
-                        <Badge variant={statusColors[order.status] ?? "secondary"}>
+                        <Badge
+                          variant={statusColors[order.status] ?? "secondary"}
+                        >
                           {order.status.replace("_", " ")}
                         </Badge>
                       </TableCell>
@@ -249,18 +321,26 @@ export default async function AdminStoreDetailPage({
                         ${(order.platform_fee_cents / 100).toFixed(2)}
                       </TableCell>
                       <TableCell className="text-right">
-                        ${((order.subtotal_cents - order.platform_fee_cents) / 100).toFixed(2)}
+                        $
+                        {(
+                          (order.subtotal_cents - order.platform_fee_cents) /
+                          100
+                        ).toFixed(2)}
                       </TableCell>
                       <TableCell>
-                        {order.status !== "refunded" && order.stripe_payment_intent_id && (
-                          <RefundButton orderId={order.id} />
-                        )}
+                        {order.status !== "refunded" &&
+                          order.stripe_payment_intent_id && (
+                            <RefundButton orderId={order.id} />
+                          )}
                       </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell
+                      colSpan={7}
+                      className="text-center py-8 text-muted-foreground"
+                    >
                       No orders yet.
                     </TableCell>
                   </TableRow>
@@ -272,6 +352,7 @@ export default async function AdminStoreDetailPage({
 
         {/* SETTINGS TAB */}
         <TabsContent value="settings" className="mt-6">
+          <StoreBannerForm store={store} />
           <StoreForm store={store} />
         </TabsContent>
       </Tabs>

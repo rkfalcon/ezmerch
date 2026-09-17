@@ -3,9 +3,13 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/components/storefront/cart-provider";
 import { createClient } from "@/lib/supabase/client";
+import {
+  colorName,
+  enabledVariants,
+  defaultVariant,
+} from "@/lib/product-colors";
 
 interface Variant {
   variant_id: number;
@@ -13,6 +17,7 @@ interface Variant {
   size: string;
   color: string;
   retail_price: string;
+  image_url?: string;
 }
 
 interface Product {
@@ -31,38 +36,92 @@ export default function ProductDetailPage() {
   const { addItem } = useCart();
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       const supabase = createClient();
       const { data } = await supabase
         .from("products")
-        .select("id, title, description, thumbnail_url, variants")
+        .select(
+          "id, title, description, thumbnail_url, variants, enabled_colors, global_enabled_colors, default_color, stores!inner(slug)",
+        )
         .eq("id", productId)
         .eq("published", true)
+        .eq("global_active", true)
+        .eq("stores.slug", storeSlug)
         .single();
 
+      if (cancelled) return;
       if (data) {
-        const variants =
+        const allVariants: Variant[] =
           typeof data.variants === "string"
             ? JSON.parse(data.variants)
             : data.variants;
+        const variants = enabledVariants(
+          allVariants,
+          data.enabled_colors,
+          data.global_enabled_colors,
+        );
+        if (!variants.length) {
+          setUnavailable(true);
+          setProduct(null);
+          return;
+        }
+        setUnavailable(false);
         const p = { ...data, variants } as Product;
         setProduct(p);
-        if (variants.length > 0) setSelectedVariant(variants[0]);
+        setSelectedVariant(
+          defaultVariant(variants, data.default_color) ?? null,
+        );
+      } else {
+        setUnavailable(true);
+        setProduct(null);
+        setSelectedVariant(null);
       }
     }
     load();
-  }, [productId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [productId, storeSlug]);
 
   if (!product) {
     return (
       <div className="container mx-auto px-4 py-12 text-center text-muted-foreground">
-        Loading...
+        {unavailable ? "This product is currently unavailable." : "Loading..."}
       </div>
     );
   }
+
+  const colors = [...new Set(product.variants.map(colorName))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const sizeOrder = [
+    "XS",
+    "S",
+    "M",
+    "L",
+    "XL",
+    "2XL",
+    "3XL",
+    "4XL",
+    "5XL",
+    "6XL",
+  ];
+  const colorVariants = product.variants
+    .filter(
+      (v) => selectedVariant && colorName(v) === colorName(selectedVariant),
+    )
+    .sort((a, b) => {
+      const first = sizeOrder.indexOf(a.size),
+        second = sizeOrder.indexOf(b.size);
+      return first >= 0 && second >= 0
+        ? first - second
+        : a.size.localeCompare(b.size, undefined, { numeric: true });
+    });
 
   function handleAddToCart() {
     if (!selectedVariant || !product) return;
@@ -72,7 +131,8 @@ export default function ProductDetailPage() {
       title: product.title,
       variantName: selectedVariant.name,
       priceCents: Math.round(parseFloat(selectedVariant.retail_price) * 100),
-      thumbnailUrl: product.thumbnail_url ?? undefined,
+      thumbnailUrl:
+        selectedVariant.image_url ?? product.thumbnail_url ?? undefined,
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -83,11 +143,11 @@ export default function ProductDetailPage() {
       <div className="grid md:grid-cols-2 gap-8">
         {/* Image */}
         <div className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden">
-          {product.thumbnail_url ? (
+          {selectedVariant?.image_url || product.thumbnail_url ? (
             <img
-              src={product.thumbnail_url}
+              src={selectedVariant?.image_url || product.thumbnail_url!}
               alt={product.title}
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
             />
           ) : (
             <span className="text-6xl text-muted-foreground">
@@ -109,30 +169,62 @@ export default function ProductDetailPage() {
             </p>
           )}
 
-          {/* Variant Selector */}
-          {product.variants.length > 1 && (
-            <div className="mt-6">
-              <p className="text-sm font-medium mb-2">Select Variant</p>
-              <div className="flex flex-wrap gap-2">
-                {product.variants.map((v) => (
-                  <button
-                    key={v.variant_id}
-                    onClick={() => setSelectedVariant(v)}
-                    className="focus:outline-none"
+          {selectedVariant && (
+            <div className="mt-6 grid max-w-md gap-4 sm:grid-cols-2">
+              {(colors.length > 1 || colors[0] !== "Default") && (
+                <label
+                  className="space-y-2 text-sm font-medium"
+                  htmlFor="product-color"
+                >
+                  <span className="block">Color</span>
+                  <select
+                    id="product-color"
+                    value={colorName(selectedVariant)}
+                    className="w-full min-w-0 rounded-md border bg-background px-3 py-2.5 text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+                    onChange={(event) => {
+                      const matches = product.variants.filter(
+                        (v) => colorName(v) === event.target.value,
+                      );
+                      setSelectedVariant(
+                        matches.find((v) => v.size === selectedVariant.size) ??
+                          matches[0],
+                      );
+                      setAdded(false);
+                    }}
                   >
-                    <Badge
-                      variant={
-                        selectedVariant?.variant_id === v.variant_id
-                          ? "default"
-                          : "outline"
-                      }
-                      className="cursor-pointer px-3 py-1"
-                    >
-                      {v.size} / {v.color}
-                    </Badge>
-                  </button>
-                ))}
-              </div>
+                    {colors.map((color) => (
+                      <option key={color} value={color}>
+                        {color}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label
+                className="space-y-2 text-sm font-medium"
+                htmlFor="product-size"
+              >
+                <span className="block">Size</span>
+                <select
+                  id="product-size"
+                  value={selectedVariant.variant_id}
+                  className="w-full min-w-0 rounded-md border bg-background px-3 py-2.5 text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+                  onChange={(event) => {
+                    setSelectedVariant(
+                      colorVariants.find(
+                        (v) => v.variant_id === Number(event.target.value),
+                      ) ?? selectedVariant,
+                    );
+                    setAdded(false);
+                  }}
+                >
+                  {colorVariants.map((variant) => (
+                    <option key={variant.variant_id} value={variant.variant_id}>
+                      {variant.size || "One size"}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           )}
 
