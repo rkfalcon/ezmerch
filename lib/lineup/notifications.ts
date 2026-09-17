@@ -46,8 +46,13 @@ export async function deliverLineupEmails(limit = 5) {
           text: `${notification.message}\n\nView details: ${new URL(notification.href, origin).href}`,
         }),
       });
-      if (!response.ok)
-        throw new Error(`Email provider returned ${response.status}`);
+      if (!response.ok) {
+        const details = await response.json().catch(() => null);
+        const reason = typeof details?.message === "string"
+          ? details.message.replaceAll(apiKey, "[redacted]").slice(0, 500)
+          : "No provider details available";
+        throw new Error(`Email provider returned ${response.status}: ${reason}`);
+      }
       const { error: saveError } = await db
         .from("notification_emails")
         .update({
