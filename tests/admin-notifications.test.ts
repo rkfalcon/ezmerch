@@ -158,10 +158,10 @@ test("admins are notified once for signup, store create, and store claim", async
     const claimed = await db.query<{ claim_store: string }>(
       `select claim_store('claim-token','${owner}') as claim_store`,
     );
-    assert.equal(claimed.rows[0].claim_store, "00000000-0000-0000-0000-0000000000s1");
+    assert.equal(claimed.rows[0].claim_store, "00000000-0000-0000-0000-0000000000d1");
     const claimNotes = (
       await db.query<{ message: string; title: string }>(
-        `select title,message from notifications where event_key='store-claimed:00000000-0000-0000-0000-0000000000s1'`,
+        `select title,message from notifications where event_key='store-claimed:00000000-0000-0000-0000-0000000000d1'`,
       )
     ).rows;
     assert.equal(claimNotes.length, 2);
