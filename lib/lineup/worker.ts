@@ -1,3 +1,5 @@
+import { lineupFetch } from "./request";
+import { compactGenerationState } from "./generation-state";
 import { instantPreview } from "./instant-preview";
 import { colorBatches, previewFirstBatches } from "./preview-first";
 import { printfulPlacement } from "./placement";
@@ -53,7 +55,7 @@ export function isPrintfulAsset(url: string): boolean {
 async function downloadMockup(url: string): Promise<Buffer> {
   if (!isPrintfulAsset(url))
     throw new Error("Printful returned an unrecognized image host");
-  const response = await fetch(url, {
+  const response = await lineupFetch(url, {
     redirect: "error",
     signal: AbortSignal.timeout(20_000),
   });
@@ -92,7 +94,7 @@ async function saveStep(
   const { data, error } = await db
     .from("product_generation_jobs")
     .update({
-      state,
+      state: compactGenerationState(state),
       status: "pending",
       attempts: 0,
       last_error: null,
@@ -237,7 +239,7 @@ export async function advanceJob(
   job: GenerationJob,
 ): Promise<void> {
   const template = job.template_snapshot;
-  const state = job.state;
+  const state = (job.state = compactGenerationState(job.state));
   const generation = job.generation_id ?? job.id;
   if (!state.variants || !state.batches || !state.productId) {
     const productId = await client.resolve(template);
@@ -512,32 +514,16 @@ export async function advanceJob(
 export async function runLineupWorker(budgetMs = 40_000) {
   if (process.env.BACKGROUND_JOBS_PAUSED === "true")
     return { processed: 0, paused: true };
-  const db = createAdminClient();
-  const client = new PrintfulClient();
+  const db = createAdminClient(lineupFetch);
+  const client = new PrintfulClient(lineupFetch);
   const started = Date.now();
   let processed = 0;
-  while (Date.now() - started < budgetMs) {
+  while (processed < 1 && Date.now() - started < budgetMs) {
     const { data, error } = await db.rpc("claim_lineup_job");
     if (error) throw error;
     const job = data?.[0] as GenerationJob | undefined;
-    if (!job) {
-      // Stay alive across short poll/quota waits instead of losing a full cron minute.
-      const { data: next } = await db
-        .from("product_generation_jobs")
-        .select("available_at")
-        .eq("status", "pending")
-        .order("available_at")
-        .limit(1)
-        .maybeSingle();
-      if (!next) break;
-      const delay = Date.parse(next.available_at) - Date.now();
-      if (delay <= 0) break; // Another worker owns the lease, or this job is paused.
-      if (delay + 5000 >= budgetMs - (Date.now() - started)) break;
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.min(delay, 5000)),
-      );
-      continue;
-    }
+    // Yield immediately: cron will revisit pending work without busy polling.
+    if (!job) break;
     try {
       await advanceJob(db, client, job);
     } catch (error) {
@@ -571,7 +557,7 @@ export async function runLineupWorker(budgetMs = 40_000) {
       const { error: saveError } = await db
         .from("product_generation_jobs")
         .update({
-          state: job.state,
+          state: compactGenerationState(job.state),
           status:
             !rateLimited && !outOfStock && attempts >= 5 ? "failed" : "pending",
           attempts,

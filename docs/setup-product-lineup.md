@@ -194,3 +194,11 @@ promises. Printful rendering, account quotas and stock still affect completion.
 ### Temporary background pause
 
 Set `BACKGROUND_JOBS_PAUSED=true` in Vercel production and redeploy to pause lineup generation (including upload-triggered runs) and scheduled availability checks. Cron endpoints return `{ "paused": true }` before accessing the database or sending email. Existing invocations may finish for up to five minutes. Queued work and existing listings are preserved. Stock webhook processing and checkout validation remain active. To resume, remove the variable or set it to `false`, then redeploy.
+
+### Investigating worker load
+
+The worker now advances at most one job step per invocation and exits immediately when no job is available. Database, storage, and provider requests have a 20-second timeout; this is a per-request bound, not a hard total invocation deadline. Full provider file/variant metadata is discarded before saving progress. Background schedules remain controlled by `BACKGROUND_JOBS_PAUSED`.
+
+With automatic jobs paused, run `node --env-file=.env.local --import tsx scripts/diagnose-lineup.mjs baseline` to measure public pages and a database read. Use `step` instead of `baseline` to advance exactly one real queued step. The tool refuses to begin if baseline requests fail or exceed five seconds. It writes timings and payload sizes to a temporary JSONL file as each operation finishes, without credentials or response contents. The diagnostic request timeout is 15 seconds. Run steps separately, allow recovery between them, and do not resume schedules merely because one sample passes.
+
+`node --env-file=.env.local --import tsx scripts/compact-lineup-state.ts` reports the size reduction available for existing non-running jobs. `--apply` first saves a private local backup, then updates one job at a time with optimistic status/timestamp checks. It stops if a save exceeds five seconds. Do this while background work is paused; it preserves product data and generation identifiers and only removes unused provider metadata from job state.
