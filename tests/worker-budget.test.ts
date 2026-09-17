@@ -14,7 +14,7 @@ test("a worker invocation advances only one ready job even if more remain", asyn
   process.env.BACKGROUND_JOBS_PAUSED = "false";
   let claims = 0;
   let saves = 0;
-  globalThis.fetch = async (input, init) => {
+  globalThis.fetch = async (input) => {
     const url = String(input);
     if (url.includes("/rpc/claim_lineup_job")) {
       claims++;
@@ -48,9 +48,9 @@ test("a worker invocation advances only one ready job even if more remain", asyn
             ],
       );
     }
-    if (init?.method === "PATCH") {
+    if (url.includes("/rpc/save_lineup_step")) {
       saves++;
-      return Response.json({ id: "job" });
+      return Response.json("job");
     }
     throw new Error("Unexpected worker request");
   };

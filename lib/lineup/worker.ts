@@ -1,3 +1,4 @@
+import { generationStatePatch } from "./state-patch";
 import { lineupFetch } from "./request";
 import { compactGenerationState } from "./generation-state";
 import { instantPreview } from "./instant-preview";
@@ -19,6 +20,7 @@ import type {
 } from "./types";
 
 const bucket = "lineup-assets";
+const originalStates = new WeakMap<GenerationJob, GenerationState>();
 type Database = ReturnType<typeof createAdminClient>;
 
 async function upload(
@@ -91,22 +93,18 @@ async function saveStep(
   state: GenerationState,
   delay = 0,
 ) {
-  const { data, error } = await db
-    .from("product_generation_jobs")
-    .update({
-      state: compactGenerationState(state),
-      status: "pending",
-      attempts: 0,
-      last_error: null,
-      available_at: new Date(Date.now() + delay).toISOString(),
-      lease_token: null,
-      lease_until: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", job.id)
-    .eq("lease_token", job.lease_token)
-    .select("id")
-    .single();
+  const next = compactGenerationState(state);
+  const previous = originalStates.get(job);
+  if (!previous) throw new Error("Missing original generation state");
+  const { patch, batches, remove } = generationStatePatch(previous, next);
+  const { data, error } = await db.rpc("save_lineup_step", {
+    p_job: job.id,
+    p_lease: job.lease_token,
+    p_patch: patch,
+    p_batches: batches,
+    p_remove: remove,
+    p_delay_ms: delay,
+  });
   if (error || !data) throw new Error("Could not save generation progress");
 }
 
@@ -240,6 +238,7 @@ export async function advanceJob(
 ): Promise<void> {
   const template = job.template_snapshot;
   const state = (job.state = compactGenerationState(job.state));
+  originalStates.set(job, structuredClone(state));
   const generation = job.generation_id ?? job.id;
   if (!state.variants || !state.batches || !state.productId) {
     const productId = await client.resolve(template);

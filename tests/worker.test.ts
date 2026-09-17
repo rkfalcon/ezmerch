@@ -37,6 +37,12 @@ test("generation publishes the first color and all its sizes before remaining mo
         "utf8",
       ),
     );
+    await sql.exec(
+      readFileSync(
+        "supabase/migrations/20260917212638_patch_lineup_progress.sql",
+        "utf8",
+      ),
+    );
     const store = "00000000-0000-0000-0000-000000000001";
     const logo = await sharp({
       create: { width: 200, height: 100, channels: 4, background: "#ff0000" },
@@ -94,6 +100,21 @@ test("generation publishes the first color and all its sizes before remaining mo
         },
       }),
       rpc: async (name: string, args: Record<string, unknown>) => {
+        if (name === "save_lineup_step") {
+          const r = await sql.query<{ id: string }>(
+            "select save_lineup_step($1,$2,$3::jsonb,$4::jsonb,$5::text[],$6) id",
+            [
+              args.p_job,
+              args.p_lease,
+              JSON.stringify(args.p_patch),
+              JSON.stringify(args.p_batches),
+              args.p_remove,
+              args.p_delay_ms,
+            ],
+          );
+          return { data: r.rows[0].id, error: null };
+        }
+
         if (name === "reserve_lineup_mockup_slot")
           return { data: 0, error: null };
         try {

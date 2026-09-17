@@ -97,6 +97,7 @@ for (const progressive of [false, true])
     const db = {
       from: () => ({ update: () => builder }),
       rpc: async (_name: string, args: Record<string, unknown>) => {
+        if (_name === "save_lineup_step") return { data: job.id, error: null };
         publications.push(args);
         return { error: null };
       },

@@ -185,7 +185,7 @@ Publication preserves owner visibility, color/default choices and prices, includ
 size-level prices for colors arriving later. Draft notifications are emitted once.
 Legacy jobs that already began syncing retain their stable external IDs; other
 in-flight jobs retain started mockups and regroup only untouched work. Quota pacing
-is unchanged. The worker now waits across short poll delays within its run budget.
+is unchanged. The worker yields after each step; a later invocation resumes polling.
 
 Observed catalog workload: Bella + Canvas 3001 (627 variants), 127 tasks -> 18;
 Gildan 18500 (192 variants), 40 -> 6. These are task counts, not delivery-time
@@ -198,6 +198,8 @@ Set `BACKGROUND_JOBS_PAUSED=true` in Vercel production and redeploy to pause lin
 ### Investigating worker load
 
 The worker now advances at most one job step per invocation and exits immediately when no job is available. Database, storage, and provider requests have a 20-second timeout; this is a per-request bound, not a hard total invocation deadline. Full provider file/variant metadata is discarded before saving progress. Background schedules remain controlled by `BACKGROUND_JOBS_PAUSED`.
+
+Apply `20260917212638_patch_lineup_progress.sql` before deploying the partial-save worker. Progress saves send only changed fields and batches to the service-role-only `save_lineup_step` function. The function requires a live job lease and preserves unchanged catalog data inside PostgreSQL, avoiding repeated full-state REST uploads. Initial state creation and error recovery may still write a full compact state.
 
 With automatic jobs paused, run `node --env-file=.env.local --import tsx scripts/diagnose-lineup.mjs baseline` to measure public pages and a database read. Use `step` instead of `baseline` to advance exactly one real queued step. The tool refuses to begin if baseline requests fail or exceed five seconds. It writes timings and payload sizes to a temporary JSONL file as each operation finishes, without credentials or response contents. The diagnostic request timeout is 15 seconds. Run steps separately, allow recovery between them, and do not resume schedules merely because one sample passes.
 
