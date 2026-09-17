@@ -2,6 +2,8 @@ import { createAdminClient } from "../supabase/admin";
 import { readStock, stockError } from "./availability";
 
 export async function syncSupplierStock(limit = 3) {
+  if (process.env.BACKGROUND_JOBS_PAUSED === "true")
+    return { checked: 0, paused: true };
   const db = createAdminClient();
   const { data: templates, error } = await db
     .from("product_templates")
@@ -40,6 +42,7 @@ export async function syncSupplierStock(limit = 3) {
 
 /** Keep newly added catalog products covered without replacing the signing keys. */
 export async function refreshStockSubscription() {
+  if (process.env.BACKGROUND_JOBS_PAUSED === "true") return;
   if (!process.env.PRINTFUL_STOCK_WEBHOOK_SECRET) return;
   const { PrintfulClient } = await import("./printful");
   const client = new PrintfulClient();

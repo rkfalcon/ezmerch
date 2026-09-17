@@ -190,3 +190,7 @@ is unchanged. The worker now waits across short poll delays within its run budge
 Observed catalog workload: Bella + Canvas 3001 (627 variants), 127 tasks -> 18;
 Gildan 18500 (192 variants), 40 -> 6. These are task counts, not delivery-time
 promises. Printful rendering, account quotas and stock still affect completion.
+
+### Temporary background pause
+
+Set `BACKGROUND_JOBS_PAUSED=true` in Vercel production and redeploy to pause lineup generation (including upload-triggered runs) and scheduled availability checks. Cron endpoints return `{ "paused": true }` before accessing the database or sending email. Existing invocations may finish for up to five minutes. Queued work and existing listings are preserved. Stock webhook processing and checkout validation remain active. To resume, remove the variable or set it to `false`, then redeploy.

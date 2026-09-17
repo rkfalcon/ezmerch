@@ -510,6 +510,8 @@ export async function advanceJob(
 }
 
 export async function runLineupWorker(budgetMs = 40_000) {
+  if (process.env.BACKGROUND_JOBS_PAUSED === "true")
+    return { processed: 0, paused: true };
   const db = createAdminClient();
   const client = new PrintfulClient();
   const started = Date.now();

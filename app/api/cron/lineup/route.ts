@@ -14,6 +14,8 @@ export async function GET(request: Request) {
     !timingSafeEqual(supplied, expected)
   )
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  if (process.env.BACKGROUND_JOBS_PAUSED === "true")
+    return Response.json({ paused: true });
   const jobs = await runLineupWorker();
   const emails = await deliverLineupEmails();
   return Response.json({ ...jobs, ...emails });
