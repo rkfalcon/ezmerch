@@ -7,6 +7,7 @@ const adminA = "00000000-0000-0000-0000-0000000000a1";
 const adminB = "00000000-0000-0000-0000-0000000000a2";
 const owner = "00000000-0000-0000-0000-0000000000c1";
 const signup = "00000000-0000-0000-0000-0000000000c2";
+const selfServe = "00000000-0000-0000-0000-0000000000c3";
 
 async function applyAdminNotificationSchema(db: PGlite) {
   await db.exec(`
