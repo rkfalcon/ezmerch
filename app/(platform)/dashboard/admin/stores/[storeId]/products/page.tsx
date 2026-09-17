@@ -1,3 +1,4 @@
+import { productDisplayImage } from "@/lib/product-colors";
 import {
   StoreProductColorPills,
   storeProductEnabled,
@@ -88,7 +89,7 @@ export default async function AdminStoreProductsPage({
                         product={{
                           id: product.id,
                           title: product.title,
-                          thumbnail_url: product.thumbnail_url,
+                          thumbnail_url: productDisplayImage(product),
                         }}
                       />
                       <StoreProductColorPills product={product} />

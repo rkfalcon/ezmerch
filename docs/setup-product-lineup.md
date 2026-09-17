@@ -150,3 +150,18 @@ checkout link, which is a single styled anchor rather than a nested button/link.
 Browser reproduction confirmed the original live issue. Verification covers the
 product-to-checkout transition, editable checkout fields, and reopening the cart
 and clicking Checkout again on the same page at mobile width. No payment submitted.
+
+Store-specific default image: open a product preview from a store's Products
+section, preview an enabled color, click **Use this color as default image**, then
+**Save product choices**. This updates the storefront card, initial product-page
+color, and admin thumbnail for that store only. **Use automatic default** resets
+it. Disabled colors cannot be newly selected; if a saved default is disabled
+locally or globally later, display falls back to an enabled color while retaining
+the preference for re-enablement. The existing owner/admin-authorized colors API
+validates the chosen color and requires a generated mockup.
+
+Migration `20260917011458_product_default_color.sql` adds nullable default_color.
+Verification: 18 tests and TypeScript; browser fixture checks cover choosing,
+saving, reopening, automatic reset, disabled-color prevention, storefront card
+selection, and mobile layout. Browser saves were mocked, leaving live store
+preferences untouched.

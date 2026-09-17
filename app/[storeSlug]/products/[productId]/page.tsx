@@ -5,7 +5,11 @@ import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/components/storefront/cart-provider";
 import { createClient } from "@/lib/supabase/client";
-import { colorName, enabledVariants } from "@/lib/product-colors";
+import {
+  colorName,
+  enabledVariants,
+  defaultVariant,
+} from "@/lib/product-colors";
 
 interface Variant {
   variant_id: number;
@@ -42,7 +46,7 @@ export default function ProductDetailPage() {
       const { data } = await supabase
         .from("products")
         .select(
-          "id, title, description, thumbnail_url, variants, enabled_colors, global_enabled_colors, stores!inner(slug)",
+          "id, title, description, thumbnail_url, variants, enabled_colors, global_enabled_colors, default_color, stores!inner(slug)",
         )
         .eq("id", productId)
         .eq("published", true)
@@ -69,7 +73,9 @@ export default function ProductDetailPage() {
         setUnavailable(false);
         const p = { ...data, variants } as Product;
         setProduct(p);
-        if (variants.length > 0) setSelectedVariant(variants[0]);
+        setSelectedVariant(
+          defaultVariant(variants, data.default_color) ?? null,
+        );
       } else {
         setUnavailable(true);
         setProduct(null);

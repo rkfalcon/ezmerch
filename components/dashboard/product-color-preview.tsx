@@ -20,6 +20,7 @@ interface ProductSummary {
 interface Details extends ProductSummary {
   variants: ColorVariant[];
   enabled_colors: string[] | null;
+  default_color?: string | null;
   global_active?: boolean;
   global_enabled_colors?: string[] | null;
   preview_source?: "sample" | "catalog";
@@ -86,6 +87,8 @@ function ColorEditor({
       ? `/api/lineup/templates/${product.id}/colors`
       : `/api/products/${product.id}/colors`;
   const [details, setDetails] = useState<Details | null>(null);
+  const [defaultColor, setDefaultColor] = useState<string | null>(null);
+  const [savedDefault, setSavedDefault] = useState<string | null>(null);
   const [selected, setSelected] = useState("");
   const [enabled, setEnabled] = useState<string[]>([]);
   const [saved, setSaved] = useState<string[]>([]);
@@ -105,7 +108,9 @@ function ColorEditor({
           ...new Set((data.variants as ColorVariant[]).map(colorName)),
         ];
         setDetails(data);
-        setSelected(colors[0] ?? "");
+        setSelected(data.default_color ?? colors[0] ?? "");
+        setDefaultColor(data.default_color ?? null);
+        setSavedDefault(data.default_color ?? null);
         setEnabled(data.enabled_colors ?? colors);
         setSaved(data.enabled_colors ?? colors);
       })
@@ -124,7 +129,9 @@ function ColorEditor({
     details?.variants.filter((v) => colorName(v) === selected) ?? [];
   const image = colorVariants.find((v) => v.image_url)?.image_url;
   const dirty =
-    enabled.length !== saved.length || enabled.some((c) => !saved.includes(c));
+    defaultColor !== savedDefault ||
+    enabled.length !== saved.length ||
+    enabled.some((c) => !saved.includes(c));
   async function save() {
     setBusy(true);
     setError("");
@@ -133,15 +140,22 @@ function ColorEditor({
       const response = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ colors: enabled }),
+        body: JSON.stringify({
+          colors: enabled,
+          ...(scope === "store" ? { defaultColor } : {}),
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save colors");
       setSaved(data.colors);
+      if (scope === "store") {
+        setSavedDefault(data.defaultColor ?? null);
+        setDefaultColor(data.defaultColor ?? null);
+      }
       setNotice(
         scope === "global"
           ? "Global color availability saved for all stores."
-          : "Color availability saved.",
+          : "Product colors and default image saved.",
       );
       router.refresh();
     } catch (e) {
@@ -204,6 +218,58 @@ function ColorEditor({
                 : " · Disabled in store"
               : ""}
         </p>
+        {scope === "store" && (
+          <div className="my-3 space-y-2 rounded-md border p-3">
+            <p className="text-sm font-medium">
+              Default display color: {defaultColor ?? "Automatic"}
+            </p>
+            {defaultColor &&
+              (!enabled.includes(defaultColor) ||
+                !globallyAllowed(defaultColor)) && (
+                <p className="text-xs text-muted-foreground">
+                  This color is disabled. The storefront will use another
+                  enabled color until it is available again.
+                </p>
+              )}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={
+                busy ||
+                !image ||
+                !enabled.includes(selected) ||
+                !globallyAllowed(selected) ||
+                defaultColor === selected
+              }
+              onClick={() => {
+                setDefaultColor(selected);
+                setNotice("");
+              }}
+            >
+              {defaultColor === selected
+                ? "Default image selected"
+                : "Use this color as default image"}
+            </Button>
+            {defaultColor && (
+              <button
+                type="button"
+                disabled={busy}
+                className="block text-xs underline"
+                onClick={() => {
+                  setDefaultColor(null);
+                  setNotice("");
+                }}
+              >
+                Use automatic default
+              </button>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Save below to update the storefront thumbnail and starting product
+              color.
+            </p>
+          </div>
+        )}
         <p className="text-sm text-muted-foreground">
           Sizes:{" "}
           {[...new Set(colorVariants.map((v) => v.size).filter(Boolean))].join(
@@ -318,7 +384,11 @@ function ColorEditor({
           onClick={save}
           className="w-full"
         >
-          {busy ? "Saving…" : "Save enabled colors"}
+          {busy
+            ? "Saving…"
+            : scope === "store"
+              ? "Save product choices"
+              : "Save enabled colors"}
         </Button>
         {dirty && (
           <p className="text-xs text-muted-foreground">

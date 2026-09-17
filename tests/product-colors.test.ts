@@ -52,3 +52,45 @@ test("global limits intersect local choices without changing either saved select
   assert.deepEqual(local, ["Black", "White"]);
   assert.deepEqual(global, ["White"]);
 });
+
+test("default product image follows enabled colors and restores a saved preference when re-enabled", async () => {
+  const { defaultVariant, productDisplayImage, validateDefaultColor } =
+    await import("../lib/product-colors");
+  const variants = [
+    { color: "Black", image_url: "black.jpg" },
+    { color: "White", image_url: "white.jpg" },
+    { color: "Red" },
+  ];
+  const product = {
+    variants,
+    default_color: "White",
+    thumbnail_url: "old.jpg",
+    enabled_colors: null,
+    global_enabled_colors: null,
+  };
+  assert.equal(productDisplayImage(product), "white.jpg");
+  assert.equal(defaultVariant(variants, "White")?.image_url, "white.jpg");
+  assert.equal(
+    productDisplayImage({ ...product, global_enabled_colors: ["Black"] }),
+    "black.jpg",
+  );
+  assert.equal(
+    productDisplayImage({ ...product, enabled_colors: ["Black"] }),
+    "black.jpg",
+  );
+  assert.equal(productDisplayImage(product), "white.jpg");
+  assert.equal(validateDefaultColor(variants, "White", ["White"]), "White");
+  assert.equal(validateDefaultColor(variants, null, ["Black"]), null);
+  assert.throws(
+    () => validateDefaultColor(variants, "White", ["Black"]),
+    /enabled color/,
+  );
+  assert.throws(
+    () => validateDefaultColor(variants, "White", ["White"], ["Black"]),
+    /enabled color/,
+  );
+  assert.throws(
+    () => validateDefaultColor(variants, "Red", ["Red"]),
+    /generated mockup/,
+  );
+});

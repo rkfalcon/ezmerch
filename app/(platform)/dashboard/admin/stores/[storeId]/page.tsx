@@ -1,3 +1,4 @@
+import { productDisplayImage } from "@/lib/product-colors";
 import { StoreBannerForm } from "@/components/dashboard/store-banner-form";
 import {
   StoreProductColorPills,
@@ -240,7 +241,7 @@ export default async function AdminStoreDetailPage({
                                 product={{
                                   id: product.id,
                                   title: product.title,
-                                  thumbnail_url: product.thumbnail_url,
+                                  thumbnail_url: productDisplayImage(product),
                                 }}
                               />
                               <StoreProductColorPills product={product} />

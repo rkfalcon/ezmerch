@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { enabledVariants } from "@/lib/product-colors";
+import { enabledVariants, productDisplayImage } from "@/lib/product-colors";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 
 interface ProductCardProps {
@@ -14,6 +14,7 @@ interface ProductCardProps {
           image_url?: string;
         }>
       | string;
+    default_color?: string | null;
     enabled_colors?: string[] | null;
     global_enabled_colors?: string[] | null;
   };
@@ -35,8 +36,7 @@ export function ProductCard({ product, storeSlug }: ProductCardProps) {
     product.global_enabled_colors,
   );
   if (!variants.length) return null;
-  const thumbnail =
-    variants.find((v) => v.image_url)?.image_url ?? product.thumbnail_url;
+  const thumbnail = productDisplayImage(product);
 
   const prices = variants
     .map((v: { retail_price: string }) => parseFloat(v.retail_price))

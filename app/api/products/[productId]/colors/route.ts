@@ -2,6 +2,7 @@ import { getUserWithRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   validateColorSelection,
+  validateDefaultColor,
   type ColorVariant,
 } from "@/lib/product-colors";
 import { revalidatePath } from "next/cache";
@@ -13,7 +14,7 @@ async function accessibleProduct(productId: string) {
   const { data: product, error } = await db
     .from("products")
     .select(
-      "id,title,thumbnail_url,variants,enabled_colors,global_active,global_enabled_colors,store_id",
+      "id,title,thumbnail_url,variants,enabled_colors,global_active,global_enabled_colors,default_color,store_id",
     )
     .eq("id", productId)
     .single();
@@ -54,13 +55,26 @@ export async function PATCH(request: Request, context: Context) {
       { status: 403 },
     );
   try {
-    const colors = validateColorSelection(
-      result.product.variants,
-      (await request.json()).colors,
-    );
+    const body = await request.json();
+    const colors = validateColorSelection(result.product.variants, body.colors);
+    const updates: { enabled_colors: string[]; default_color?: string | null } =
+      { enabled_colors: colors };
+    if (
+      Object.hasOwn(body, "defaultColor") &&
+      body.defaultColor !== result.product.default_color
+    ) {
+      if (body.defaultColor !== null && !result.product.global_active)
+        throw new Error("This product is disabled globally.");
+      updates.default_color = validateDefaultColor(
+        result.product.variants,
+        body.defaultColor,
+        colors,
+        result.product.global_enabled_colors,
+      );
+    }
     const { error } = await result.db
       .from("products")
-      .update({ enabled_colors: colors })
+      .update(updates)
       .eq("id", result.product.id)
       .select("id")
       .single();
@@ -69,7 +83,13 @@ export async function PATCH(request: Request, context: Context) {
     revalidatePath(`/dashboard/admin/stores/${result.store.id}/products`);
     revalidatePath("/dashboard/store/products");
     revalidatePath(`/${result.store.slug}`, "layout");
-    return Response.json({ colors });
+    return Response.json({
+      colors,
+      defaultColor:
+        updates.default_color === undefined
+          ? result.product.default_color
+          : updates.default_color,
+    });
   } catch (error) {
     return Response.json(
       {
