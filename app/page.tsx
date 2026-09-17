@@ -62,7 +62,7 @@ export default async function HomePage() {
       </section>
 
       {/* Store Directory */}
-      {storesWithProducts.length > 0 && (
+      {storesWithProducts && storesWithProducts.length > 0 && (
         <section className="border-t py-16">
           <div className="container mx-auto px-4">
             <h2 className="text-2xl font-bold text-center mb-8">
