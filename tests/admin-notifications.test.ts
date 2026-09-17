@@ -206,7 +206,7 @@ test("admins are notified once for signup, store create, and store claim", async
     assert.equal(onboardingNotes.length, 2);
     assert.match(
       onboardingNotes[0].message,
-      /Self Serve \(\/self-serve\) was created by Casey \(owner@example.com\)/,
+      /Self Serve \(\/self-serve\) was created by Casey \(self@example.com\)/,
     );
     assert.doesNotMatch(onboardingNotes[0].message, /waiting to be claimed/);
     assert.equal(
