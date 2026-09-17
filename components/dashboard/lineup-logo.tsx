@@ -1,4 +1,5 @@
 "use client";
+import { jobStatus } from "@/lib/lineup/job-status";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -145,18 +146,14 @@ export function LineupLogo({
               <div>
                 <p className="text-sm font-medium">{j.title}</p>
                 <p className="text-xs text-muted-foreground">
-                  {j.status === "completed"
-                    ? "Generated"
-                    : j.status === "failed"
-                      ? "Needs attention"
-                      : j.status === "running"
-                        ? "Generating"
-                        : "Queued"}{" "}
-                  · {j.publish ? "Initial lineup" : "Draft addition"}
+                  {jobStatus(j.status, j.error).label} ·{" "}
+                  {j.publish ? "Initial lineup" : "Draft addition"}
                 </p>
-                {j.error && (
-                  <p className="text-xs text-destructive max-w-xl break-words">
-                    {j.error}
+                {jobStatus(j.status, j.error).message && (
+                  <p
+                    className={`text-xs max-w-xl break-words ${jobStatus(j.status, j.error).failed ? "text-destructive" : "text-muted-foreground"}`}
+                  >
+                    {jobStatus(j.status, j.error).message}
                   </p>
                 )}
               </div>

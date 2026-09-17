@@ -82,6 +82,7 @@ test("generation persists artwork, mockups and sync IDs and publishes exactly on
         },
       }),
       rpc: async (name: string, args: Record<string, unknown>) => {
+        if(name==="reserve_lineup_mockup_slot")return {data:0,error:null};
         try {
           const result = await sql.query(
             `select ${name}($1,$2,$3,$4::jsonb,$5::jsonb)`,

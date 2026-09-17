@@ -186,6 +186,15 @@ export async function advanceJob(
       return;
     }
     if (!batch.taskKey) {
+      const { data: waitMs, error: paceError } = await db.rpc(
+        "reserve_lineup_mockup_slot",
+      );
+      if (paceError || typeof waitMs !== "number")
+        throw new Error("Could not reserve a Printful request slot");
+      if (waitMs > 0) {
+        await saveStep(db, job, state, waitMs);
+        return;
+      }
       const task = await client.createMockup(state.productId, batch, template);
       if (!task.task_key)
         throw new Error("Printful did not return a mockup task");
@@ -333,12 +342,18 @@ export async function runLineupWorker(budgetMs = 40_000) {
     } catch (error) {
       const rateLimited =
         error instanceof PrintfulError && error.status === 429;
-      const attempts = rateLimited ? job.attempts : job.attempts + 1;
+      const outOfStock =
+        error instanceof Error &&
+        error.message === "No available variants for this product";
+      const attempts =
+        rateLimited || outOfStock ? job.attempts : job.attempts + 1;
       const availableAt = new Date(
         Date.now() +
-          (rateLimited
-            ? error.retryAfterMs
-            : Math.min(30 * 60_000, 60_000 * 2 ** attempts)),
+          (outOfStock
+            ? 6 * 60 * 60_000
+            : rateLimited
+              ? error.retryAfterMs
+              : Math.min(30 * 60_000, 60_000 * 2 ** attempts)),
       ).toISOString();
       // While this job still owns the global lease, pause other ready jobs too.
       // A provider-wide quota is not an individual product failure.
@@ -356,7 +371,8 @@ export async function runLineupWorker(budgetMs = 40_000) {
         .from("product_generation_jobs")
         .update({
           state: job.state,
-          status: !rateLimited && attempts >= 5 ? "failed" : "pending",
+          status:
+            !rateLimited && !outOfStock && attempts >= 5 ? "failed" : "pending",
           attempts,
           last_error: message.slice(0, 700),
           available_at: availableAt,
