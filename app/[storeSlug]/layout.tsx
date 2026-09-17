@@ -17,7 +17,7 @@ export default async function StoreLayout({
   const { data: store } = await supabase
     .from("stores")
     .select(
-      "id, name, slug, brand_colors, logo_url, header_color, header_text_color",
+      "id, name, slug, brand_colors, logo_url, header_color, header_text_color, selling_enabled",
     )
     .eq("slug", storeSlug)
     .single();
@@ -31,6 +31,12 @@ export default async function StoreLayout({
       <CartProvider storeSlug={store.slug}>
         <div className="min-h-screen flex flex-col">
           <StoreHeader store={store} />
+          {!store.selling_enabled && (
+            <p className="bg-amber-50 p-3 text-center text-sm text-amber-950">
+              Store preview · Checkout will open once the owner finishes payment
+              setup.
+            </p>
+          )}
           <main className="flex-1">{children}</main>
           <footer className="border-t py-6 text-center text-sm text-muted-foreground">
             <p>Powered by EZMerch</p>

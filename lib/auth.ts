@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -17,13 +18,13 @@ export async function getUserWithRole() {
 
   if (!user) return null;
 
-  // Try reading roles via RLS
-  const { data: roles, error } = await supabase
+  // Read roles for the verified user with the server client
+  const { data: roles, error } = await createAdminClient()
     .from("user_roles")
     .select("role, store_id")
     .eq("user_id", user.id);
 
-  // If RLS query succeeded and returned results, use them
+  // If the database query returned roles, use them immediately
   if (!error && roles && roles.length > 0) {
     return {
       ...user,

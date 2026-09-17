@@ -15,6 +15,7 @@ export default async function HomePage() {
   const { data: stores } = await supabase
     .from("stores")
     .select("id, name, slug, brand_colors, logo_url, banner_color, banner_text_color, header_color, header_text_color")
+    .eq("selling_enabled", true)
     .order("created_at", { ascending: false });
 
   // Filter to stores with at least one published product

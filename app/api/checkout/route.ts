@@ -1,3 +1,4 @@
+import { stripeReady } from "@/lib/onboarding/validation";
 import { NextResponse } from "next/server";
 import { enabledVariants, type ColorVariant } from "@/lib/product-colors";
 import { stripe } from "@/lib/stripe";
@@ -27,12 +28,40 @@ export async function POST(request: Request) {
   // Fetch store for revenue split
   const { data: store } = await supabase
     .from("stores")
-    .select("id, claimed, stripe_account_id")
+    .select(
+      "id, claimed, stripe_account_id, selling_enabled, onboarding_started_at",
+    )
     .eq("id", storeId)
     .single();
 
   if (!store) {
     return NextResponse.json({ error: "Store not found" }, { status: 404 });
+  }
+
+  if (!store.selling_enabled)
+    return NextResponse.json(
+      { error: "This store is getting ready to open. Please check back soon." },
+      { status: 409 },
+    );
+  if (store.onboarding_started_at) {
+    if (!store.stripe_account_id)
+      return NextResponse.json(
+        { error: "This store is not ready to accept payments." },
+        { status: 409 },
+      );
+    try {
+      const account = await stripe.accounts.retrieve(store.stripe_account_id);
+      if (!stripeReady(account))
+        return NextResponse.json(
+          { error: "This store is not ready to accept payments." },
+          { status: 409 },
+        );
+    } catch {
+      return NextResponse.json(
+        { error: "Unable to verify payment availability. Please try again." },
+        { status: 503 },
+      );
+    }
   }
 
   // Server-side cart validation — look up actual prices from DB

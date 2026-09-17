@@ -31,6 +31,7 @@ const adminLinks = [
 ];
 
 const storeOwnerLinks = [
+  { href: "/dashboard/onboarding", label: "Store setup" },
   { href: "/dashboard/notifications", label: "Notifications" },
   { href: "/dashboard/store", label: "Overview" },
   { href: "/dashboard/store/products", label: "Products" },
@@ -51,6 +52,13 @@ export function DashboardSidebar({ user }: { user: UserWithRole }) {
         <p className="text-xs text-muted-foreground truncate">{user.email}</p>
       </SidebarHeader>
       <SidebarContent>
+        {!user.isAdmin && !user.isStoreOwner && (
+          <SidebarGroup>
+            <Link href="/dashboard/onboarding" className="p-2 text-sm">
+              Set up your store
+            </Link>
+          </SidebarGroup>
+        )}
         {user.isAdmin && (
           <SidebarGroup>
             <SidebarGroupLabel>Admin</SidebarGroupLabel>

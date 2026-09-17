@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireStoreOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -18,18 +19,28 @@ export default async function StoreOverviewPage() {
   const { data: store } = await supabase
     .from("stores")
     .select("*")
-    .eq("id", user.storeId)
-    .single();
+    .eq("owner_id", user.id)
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+  if (!store || (store.onboarding_started_at && !store.selling_enabled))
+    redirect("/dashboard/onboarding");
 
   // Fetch order stats
   const { data: orders } = await supabase
     .from("orders")
     .select("subtotal_cents, platform_fee_cents, status")
-    .eq("store_id", user.storeId);
+    .eq("store_id", store.id);
 
   const totalOrders = orders?.length ?? 0;
-  const pendingOrders = orders?.filter((o) => ["paid", "fulfilling"].includes(o.status)).length ?? 0;
-  const totalRevenue = orders?.reduce((sum, o) => sum + (o.subtotal_cents - o.platform_fee_cents), 0) ?? 0;
+  const pendingOrders =
+    orders?.filter((o) => ["paid", "fulfilling"].includes(o.status)).length ??
+    0;
+  const totalRevenue =
+    orders?.reduce(
+      (sum, o) => sum + (o.subtotal_cents - o.platform_fee_cents),
+      0,
+    ) ?? 0;
 
   return (
     <div>
@@ -44,7 +55,9 @@ export default async function StoreOverviewPage() {
           <Badge variant="default">Stripe Connected</Badge>
         ) : (
           <Link href="/dashboard/store/connect">
-            <Button variant="outline" size="sm">Connect Stripe</Button>
+            <Button variant="outline" size="sm">
+              Connect Stripe
+            </Button>
           </Link>
         )}
       </div>
@@ -70,7 +83,9 @@ export default async function StoreOverviewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">60% of product subtotals</p>
+            <p className="text-xs text-muted-foreground">
+              60% of product subtotals
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -80,7 +95,9 @@ export default async function StoreOverviewPage() {
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader>
               <CardTitle className="text-base">Products</CardTitle>
-              <CardDescription>Manage your store&apos;s products</CardDescription>
+              <CardDescription>
+                Manage your store&apos;s products
+              </CardDescription>
             </CardHeader>
           </Card>
         </Link>
@@ -96,7 +113,9 @@ export default async function StoreOverviewPage() {
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <CardHeader>
               <CardTitle className="text-base">Settings</CardTitle>
-              <CardDescription>Update store branding and shipping</CardDescription>
+              <CardDescription>
+                Update store branding and shipping
+              </CardDescription>
             </CardHeader>
           </Card>
         </Link>
