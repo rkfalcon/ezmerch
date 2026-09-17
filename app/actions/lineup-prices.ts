@@ -1,15 +1,17 @@
 "use server";
-import { lineupAdmin, lineupStoreAccess } from "@/lib/lineup/access";
+import { getUserWithRole } from "@/lib/auth";
+import { applySizePrice } from "@/lib/lineup/size-prices";
+import { lineupStoreAccess } from "@/lib/lineup/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
 export async function setProductPrice(
   productId: string,
   priceCents: number,
-  variantId?: number,
+  size?: string | number,
 ) {
   try {
-    await lineupAdmin();
+    if (!(await getUserWithRole())) throw new Error("Sign in required");
     if (
       !Number.isInteger(priceCents) ||
       priceCents <= 0 ||
@@ -30,12 +32,7 @@ export async function setProductPrice(
         : product.variants;
     if (!Array.isArray(variants) || !variants.length)
       throw new Error("Product has no variants");
-    const updated = variants.map(
-      (v: { variant_id: number; retail_price: string }) =>
-        variantId === undefined || v.variant_id === variantId
-          ? { ...v, retail_price: (priceCents / 100).toFixed(2) }
-          : v,
-    );
+    const updated = applySizePrice(variants, priceCents, size);
     const { error: saveError } = await db
       .from("products")
       .update({ variants: updated })
