@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { CatalogPicker } from "@/components/dashboard/catalog-picker";
 import { categorizeProduct } from "@/lib/printful-categories";
+import { leftChestPlacement, printfulPlacement } from "@/lib/lineup/placement";
 import { retailPrice } from "@/lib/lineup/pricing";
 import type {
   CatalogProduct,
@@ -233,7 +234,7 @@ function TemplateEditor({
         setFiles(d.files);
         setVariants(d.variants);
         setPlacement((current) =>
-          d.files.available_placements[current]
+          d.files.available_placements[printfulPlacement(current)]
             ? current
             : (Object.keys(d.files.available_placements)[0] ?? ""),
         );
@@ -393,6 +394,9 @@ function TemplateEditor({
                 value={placement}
                 onChange={(e) => setPlacement(e.target.value)}
               >
+                {technique === "dtg" && files?.available_placements.front && (
+                  <option value={leftChestPlacement}>Left chest (front print preset)</option>
+                )}
                 {Object.entries(files?.available_placements ?? {}).map(
                   ([key, name]) => (
                     <option key={key} value={key}>
@@ -403,7 +407,7 @@ function TemplateEditor({
               </select>
             </label>
             <label className="text-sm space-y-1">
-              Logo scale (%)
+              {placement === leftChestPlacement ? "Logo scale (% of chest area)" : "Logo scale (%)"}
               <Input
                 type="number"
                 min="1"

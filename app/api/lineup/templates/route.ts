@@ -1,3 +1,4 @@
+import { leftChestPlacement } from "@/lib/lineup/placement";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { lineupAdmin } from "@/lib/lineup/access";
@@ -144,6 +145,7 @@ export async function POST(request: Request) {
       throw new Error("Invalid mockup styles");
     const technique = String(body.technique ?? "dtg");
     const placement = String(body.placement ?? "front");
+    if (placement === leftChestPlacement && technique !== "dtg") throw new Error("The left chest print preset requires Print decoration.");
     const [catalog, files] = await Promise.all([
       client.product(productId),
       client.printfiles(productId, technique),

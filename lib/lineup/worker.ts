@@ -1,3 +1,4 @@
+import { printfulPlacement } from "./placement";
 import { createAdminClient } from "../supabase/admin";
 import sharp from "sharp";
 import { renderArtwork } from "./artwork";
@@ -151,6 +152,7 @@ export async function advanceJob(
         batch.printfile.width,
         batch.printfile.height,
         Number(template.scale),
+        template.placement,
       );
       batch.artworkUrl = await upload(
         db,
@@ -238,7 +240,7 @@ export async function advanceJob(
           {
             url: state.batches!.find((b) => b.variantIds.includes(v.id))!
               .artworkUrl!,
-            type: template.placement,
+            type: printfulPlacement(template.placement),
             ...(template.technique === "embroidery"
               ? { options: [{ id: "auto_thread_color", value: true }] }
               : {}),
