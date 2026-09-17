@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
+import { bannerColor, bannerTextColor } from "@/lib/store-banner";
 import {
   Card,
   CardContent,
@@ -13,7 +14,7 @@ export default async function HomePage() {
   // Fetch stores that have published products
   const { data: stores } = await supabase
     .from("stores")
-    .select("id, name, slug, brand_colors, logo_url")
+    .select("id, name, slug, brand_colors, logo_url, banner_color, banner_text_color, header_color, header_text_color")
     .order("created_at", { ascending: false });
 
   // Filter to stores with at least one published product
@@ -83,19 +84,24 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {storesWithProducts.map((store) => (
                 <Link key={store.id} href={`/${store.slug}`}>
-                  <Card className="overflow-hidden transition-shadow hover:shadow-md h-full">
+                  <Card
+                    className="overflow-hidden transition-shadow hover:shadow-md h-full pt-0"
+                    style={{
+                      backgroundColor: bannerColor(store.banner_color, store.brand_colors.primary),
+                      color: store.banner_text_color ?? bannerTextColor(bannerColor(store.banner_color, store.brand_colors.primary)),
+                    }}
+                  >
                     <div
                       className="h-24 flex items-center justify-center"
                       style={{
-                        backgroundColor:
-                          store.brand_colors.primary + "15",
+                        backgroundColor: bannerColor(store.banner_color, store.brand_colors.primary),
                       }}
                     >
                       {store.logo_url ? (
                         <img
                           src={store.logo_url}
                           alt={store.name}
-                          className="h-12 w-12 rounded-full object-cover"
+                          className="h-12 w-12 object-contain"
                         />
                       ) : (
                         <div
@@ -113,8 +119,14 @@ export default async function HomePage() {
                         {store.name}
                       </h3>
                     </CardContent>
-                    <CardFooter className="justify-center">
-                      <span className="text-xs text-muted-foreground font-mono">
+                    <CardFooter
+                      className="justify-center"
+                      style={{
+                        backgroundColor: store.header_color ?? "#ffffff",
+                        color: store.header_text_color ?? "#000000",
+                      }}
+                    >
+                      <span className="text-xs font-mono">
                         ezmerch.store/{store.slug}
                       </span>
                     </CardFooter>
