@@ -165,3 +165,28 @@ Verification: 18 tests and TypeScript; browser fixture checks cover choosing,
 saving, reopening, automatic reset, disabled-color prevention, storefront card
 selection, and mobile layout. Browser saves were mocked, leaving live store
 preferences untouched.
+
+## Progressive generation
+
+Apply `20260917192022_progressive_lineup_publication.sql` before deploying the
+progressive worker. New stores receive a quick placement preview for supported
+printed fronts, using Printful's template coordinates and layer order. These
+previews are display-only; embroidery and unsupported surfaces wait for Printful.
+A metadata cache is service-role-only and refreshes after 24 hours.
+
+The worker renders one representative per color and identical print area, sharing
+that image across its sizes. The first enabled color is processed alone; subsequent
+tasks batch up to five colors. Each ready batch gets real Printful sync variant IDs
+before it is published. Other colors continue on the same job, and existing-store
+additions still start as drafts. Stripe setup and the Start selling gate still apply.
+
+Partial logo replacement retains old variants until replacements are ready.
+Publication preserves owner visibility, color/default choices and prices, including
+size-level prices for colors arriving later. Draft notifications are emitted once.
+Legacy jobs that already began syncing retain their stable external IDs; other
+in-flight jobs retain started mockups and regroup only untouched work. Quota pacing
+is unchanged. The worker now waits across short poll delays within its run budget.
+
+Observed catalog workload: Bella + Canvas 3001 (627 variants), 127 tasks -> 18;
+Gildan 18500 (192 variants), 40 -> 6. These are task counts, not delivery-time
+promises. Printful rendering, account quotas and stock still affect completion.

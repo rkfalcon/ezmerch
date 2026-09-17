@@ -232,7 +232,7 @@ export function StoreOnboarding() {
             </h2>
             <p role="status">
               {previews} of {setup!.products.length} product previews ready.{" "}
-              {ready} products fully prepared.{" "}
+              {ready} products available.{" "}
               {ready < setup!.products.length &&
                 "We create one preview color per product first, then prepare the remaining colors. You can leave this page—we’ll keep working."}
             </p>
@@ -331,7 +331,9 @@ export function StoreOnboarding() {
                   <h3 className="mt-3 text-sm font-medium">{p.title}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {p.ready
-                      ? "Ready"
+                      ? p.completed < p.total
+                        ? "Ready · more colors are being prepared"
+                        : "Ready"
                       : p.status === "failed"
                         ? "We couldn’t finish this product. Contact the site admin for a retry."
                         : p.total

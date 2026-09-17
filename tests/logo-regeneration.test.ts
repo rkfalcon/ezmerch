@@ -16,6 +16,7 @@ test("preview jobs have priority; replacement revokes old leases and preserves p
       "20260915144718_product_enabled_colors.sql",
       "20260917011458_product_default_color.sql",
       "20260917172317_preview_first_logo_regeneration.sql",
+      "20260917192022_progressive_lineup_publication.sql",
     ])
       await db.exec(readFileSync(`supabase/migrations/${migration}`, "utf8"));
     await db.exec(`update product_templates set active=true where slug in ('t-shirt','hoodie');insert into stores(name,slug,lineup_logo_path)values('Store','test','store/old.png');
@@ -29,7 +30,7 @@ test("preview jobs have priority; replacement revokes old leases and preserves p
     ).rows[0];
     assert.equal(claim.template_snapshot.slug, "t-shirt");
     await db.exec(`insert into products(store_id,template_id,title,published,enabled_colors,default_color,variants)
-    select store_id,template_id,'Custom title',false,array['Black'],'Black','[{"variant_id":1,"retail_price":"99.00","sync_variant_id":111}]' from product_generation_jobs where id='${claim.id}';`);
+    select store_id,template_id,'Custom title',false,array['Black'],'Black','[{"variant_id":1,"size":"M","retail_price":"99.00","sync_variant_id":111}]' from product_generation_jobs where id='${claim.id}';`);
     const product = (await db.query<{ id: string }>("select id from products"))
       .rows[0];
     await db.exec(
@@ -57,6 +58,43 @@ test("preview jobs have priority; replacement revokes old leases and preserves p
     // Either template can win after reset. Select the existing product job explicitly.
     await db.exec(
       `update product_generation_jobs set status='pending',lease_token=null,lease_until=null;update product_generation_jobs set status='running',lease_token='00000000-0000-0000-0000-000000000001',lease_until=now()+interval '1 minute' where id='${claim.id}';`,
+    );
+    // A partial replacement preserves untouched variants and owner choices.
+    await db.query(
+      "select publish_lineup_progress($1,$2,222,$3::jsonb,$4::jsonb)",
+      [
+        claim.id,
+        "00000000-0000-0000-0000-000000000001",
+        JSON.stringify([
+          {
+            variant_id: 2,
+            size: "M",
+            retail_price: "20.00",
+            sync_variant_id: 223,
+            image_url: "preview",
+          },
+        ]),
+        JSON.stringify([{ url: "preview", variant_ids: [2] }]),
+      ],
+    );
+    const partial = (
+      await db.query<{ variants: unknown[]; published: boolean }>(
+        "select variants,published from products",
+      )
+    ).rows[0];
+    assert.equal(partial.variants.length, 2);
+    assert.equal(
+      (partial.variants[0] as { retail_price: string }).retail_price,
+      "99.00",
+    );
+    assert.equal(partial.published, false);
+    assert.equal(
+      (
+        await db.query<{ status: string }>(
+          `select status from product_generation_jobs where id='${claim.id}'`,
+        )
+      ).rows[0].status,
+      "running",
     );
     await db.query(
       "select complete_lineup_job($1,$2,222,$3::jsonb,$4::jsonb)",

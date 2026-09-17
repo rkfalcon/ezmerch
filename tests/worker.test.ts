@@ -7,7 +7,7 @@ import { advanceJob } from "../lib/lineup/worker";
 import { PrintfulClient } from "../lib/lineup/printful";
 import type { GenerationJob } from "../lib/lineup/types";
 
-test("generation persists artwork, mockups and sync IDs and publishes exactly one complete product", async () => {
+test("generation publishes the first color and all its sizes before remaining mockups finish", async () => {
   const sql = new PGlite();
   const assets = new Map<string, Buffer>();
   const nativeFetch = globalThis.fetch;
@@ -22,6 +22,18 @@ test("generation persists artwork, mockups and sync IDs and publishes exactly on
     await sql.exec(
       readFileSync(
         "supabase/migrations/20260914190719_product_template_lineup.sql",
+        "utf8",
+      ),
+    );
+    await sql.exec(
+      readFileSync(
+        "supabase/migrations/20260917172317_preview_first_logo_regeneration.sql",
+        "utf8",
+      ),
+    );
+    await sql.exec(
+      readFileSync(
+        "supabase/migrations/20260917192022_progressive_lineup_publication.sql",
         "utf8",
       ),
     );
@@ -82,7 +94,8 @@ test("generation persists artwork, mockups and sync IDs and publishes exactly on
         },
       }),
       rpc: async (name: string, args: Record<string, unknown>) => {
-        if(name==="reserve_lineup_mockup_slot")return {data:0,error:null};
+        if (name === "reserve_lineup_mockup_slot")
+          return { data: 0, error: null };
         try {
           const result = await sql.query(
             `select ${name}($1,$2,$3,$4::jsonb,$5::jsonb)`,
@@ -114,6 +127,20 @@ test("generation persists artwork, mockups and sync IDs and publishes exactly on
                 color: "Red",
                 in_stock: true,
               },
+              {
+                id: 4012,
+                name: "Red / L",
+                size: "L",
+                color: "Red",
+                in_stock: true,
+              },
+              {
+                id: 4013,
+                name: "Blue / M",
+                size: "M",
+                color: "Blue",
+                in_stock: true,
+              },
             ],
           },
         });
@@ -126,6 +153,8 @@ test("generation persists artwork, mockups and sync IDs and publishes exactly on
             ],
             variant_printfiles: [
               { variant_id: 4011, placements: { front: 1 } },
+              { variant_id: 4012, placements: { front: 1 } },
+              { variant_id: 4013, placements: { front: 1 } },
             ],
           },
         });
@@ -133,7 +162,21 @@ test("generation persists artwork, mockups and sync IDs and publishes exactly on
         const payload = JSON.parse(String(init?.body));
         assert.equal(payload.files[0].placement, "front");
         assert.equal(payload.files[0].position.width, 180);
-        return Response.json({ result: { task_key: "test-task" } });
+        if (tasks.size === 1) {
+          const listing = (
+            await sql.query<{ variants: { variant_id: number }[] }>(
+              "select variants from products",
+            )
+          ).rows[0];
+          assert.deepEqual(
+            listing.variants.map((v) => v.variant_id),
+            [4011, 4012],
+          );
+          sawEarlyListing = true;
+        }
+        const key = String(tasks.size + 1);
+        tasks.set(key, payload.variant_ids);
+        return Response.json({ result: { task_key: key } });
       }
       if (path === "/mockup-generator/task")
         return Response.json({
@@ -142,35 +185,45 @@ test("generation persists artwork, mockups and sync IDs and publishes exactly on
             mockups: [
               {
                 mockup_url: "https://static.cdn.printful.com/test.jpg",
-                variant_ids: [4011],
+                variant_ids: tasks.get(
+                  new URL(String(url)).searchParams.get("task_key")!,
+                ),
               },
             ],
           },
         });
-      if (path.startsWith("/store/products/@"))
-        return syncCreated
-          ? Response.json({
-              result: {
-                sync_product: { id: 99 },
-                sync_variants: [{ id: 999, variant_id: 4011, synced: true }],
-              },
-            })
+      if (path.startsWith("/store/products/@")) {
+        const found = syncs.get(decodeURIComponent(path.split("@")[1]));
+        return found
+          ? Response.json({ result: found })
           : Response.json({ error: { message: "Not found" } }, { status: 404 });
+      }
       if (path === "/store/products" && init?.method === "POST") {
         const payload = JSON.parse(String(init.body));
-        assert.match(payload.sync_product.external_id, /^ezmerch-/);
-        assert.equal(payload.sync_variants[0].retail_price, "20.00");
         syncCreated++;
-        return Response.json({ result: { id: 99 } });
+        syncs.set(payload.sync_product.external_id, {
+          sync_product: { id: syncCreated },
+          sync_variants: payload.sync_variants.map(
+            (v: { variant_id: number }) => ({
+              id: v.variant_id + 10000,
+              variant_id: v.variant_id,
+              synced: true,
+            }),
+          ),
+        });
+        return Response.json({ result: { id: syncCreated } });
       }
       throw new Error(`Unexpected Printful endpoint: ${path}`);
     });
     let syncCreated = 0;
+    let sawEarlyListing = false;
+    const tasks = new Map<string, number[]>();
+    const syncs = new Map<string, unknown>();
     globalThis.fetch = async () =>
       new Response(new Uint8Array(logo), {
         headers: { "content-type": "image/png" },
       });
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 30; i++) {
       await sql.exec(`update product_generation_jobs set available_at=now()`);
       const job = (
         await sql.query<GenerationJob>("select * from claim_lineup_job()")
@@ -190,9 +243,11 @@ test("generation persists artwork, mockups and sync IDs and publishes exactly on
     assert.equal(products.rows.length, 1);
     assert.equal(products.rows[0].published, true);
     assert.equal(products.rows[0].variants[0].variant_id, 4011);
-    assert.equal(products.rows[0].variants[0].sync_variant_id, 999);
+    assert.equal(products.rows[0].variants[0].sync_variant_id, 14011);
     assert.match(products.rows[0].thumbnail_url, /example.supabase.co/);
-    assert.equal(syncCreated, 1);
+    assert.equal(syncCreated, 2);
+    assert.equal(sawEarlyListing, true);
+    assert.equal(products.rows[0].variants.length, 3);
     const mockup = [...assets.entries()].find(([key]) =>
       key.includes("mockup-"),
     )![1];

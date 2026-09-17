@@ -76,7 +76,9 @@ export default async function StorePage({
         title: job.template_snapshot.title,
         image:
           state.batches?.flatMap((b) => b.images ?? b.downloadedImages ?? [])[0]
-            ?.url ?? null,
+            ?.url ??
+          state.instantPreview ??
+          null,
       });
     }
   }
@@ -85,7 +87,11 @@ export default async function StorePage({
       <StoreBanner store={store} />
 
       {/* Products Grid */}
-      <section id="products" aria-label="Products" className="container mx-auto scroll-mt-4 px-4 py-12">
+      <section
+        id="products"
+        aria-label="Products"
+        className="container mx-auto scroll-mt-4 px-4 py-12"
+      >
         {(products && products.length > 0) || previewCards.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {products?.map((product) => (

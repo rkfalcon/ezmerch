@@ -39,14 +39,22 @@ export async function GET() {
         id: t.id,
         title: t.title,
         image:
-          product && (!job || job.status === "completed")
+          product &&
+          (!job || job.status === "completed" || !!state?.publishedVariantCount)
             ? productDisplayImage(product)
             : (batches.flatMap((b) => b.images ?? b.downloadedImages ?? [])[0]
-                ?.url ?? null),
-        ready: !!product && (!job || job.status === "completed"),
+                ?.url ??
+              state?.instantPreview ??
+              null),
+        ready:
+          !!product &&
+          (!job ||
+            job.status === "completed" ||
+            !!state?.publishedVariantCount),
         jobId: job?.id,
         status:
-          product && (!job || job.status === "completed")
+          product &&
+          (!job || job.status === "completed" || !!state?.publishedVariantCount)
             ? "ready"
             : (job?.status ?? "pending"),
         completed: batches.filter((b) => b.images).length,

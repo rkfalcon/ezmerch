@@ -59,6 +59,9 @@ export interface MockupImage {
   variant_ids: number[];
 }
 export interface MockupBatch {
+  assetKey?: string;
+  representatives?: { id: number; variantIds: number[] }[];
+  syncProducts?: NonNullable<GenerationState["syncProducts"]>;
   variantIds: number[];
   printfile: Printfile;
   artworkUrl?: string;
@@ -68,6 +71,9 @@ export interface MockupBatch {
   downloadedImages?: MockupImage[];
 }
 export interface GenerationState {
+  progressive?: boolean;
+  instantPreview?: string | null;
+  publishedVariantCount?: number;
   previewPlanned?: boolean;
   productId?: number;
   variants?: CatalogVariant[];

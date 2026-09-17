@@ -54,7 +54,10 @@ export class PrintfulClient {
         String(
           json?.error?.message ?? json?.result ?? response.statusText,
         ).slice(0, 500),
-        Math.max(65_000, (Number(response.headers.get("retry-after")) || 0) * 1000 + 5000),
+        Math.max(
+          65_000,
+          (Number(response.headers.get("retry-after")) || 0) * 1000 + 5000,
+        ),
       );
     return (json?.result ?? json?.data) as T;
   }
@@ -96,7 +99,8 @@ export class PrintfulClient {
     return this.request<{ task_key: string }>(
       `/mockup-generator/create-task/${productId}`,
       {
-        variant_ids: batch.variantIds,
+        variant_ids:
+          batch.representatives?.map((r) => r.id) ?? batch.variantIds,
         format: "jpg",
         files: [
           {
