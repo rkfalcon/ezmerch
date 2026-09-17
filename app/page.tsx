@@ -11,27 +11,16 @@ import {
 export default async function HomePage() {
   const supabase = await createClient();
 
-  // Fetch stores that have published products
+  // Filter by a published product in one request, rather than counting each store.
   const { data: stores } = await supabase
     .from("stores")
-    .select("id, name, slug, brand_colors, logo_url, banner_color, banner_text_color, header_color, header_text_color")
+    .select("id, name, slug, brand_colors, logo_url, banner_color, banner_text_color, header_color, header_text_color, products!inner(id)")
     .eq("selling_enabled", true)
+    .eq("products.published", true)
+    .limit(1, { referencedTable: "products" })
     .order("created_at", { ascending: false });
 
-  // Filter to stores with at least one published product
-  const storesWithProducts: typeof stores = [];
-  if (stores) {
-    for (const store of stores) {
-      const { count } = await supabase
-        .from("products")
-        .select("id", { count: "exact", head: true })
-        .eq("store_id", store.id)
-        .eq("published", true);
-      if (count && count > 0) {
-        storesWithProducts.push(store);
-      }
-    }
-  }
+  const storesWithProducts = stores ?? [];
 
   return (
     <div className="min-h-screen">
