@@ -110,8 +110,16 @@ for (const progressive of [false, true])
       )?.length,
       1,
     );
+    if (progressive) {
+      await advanceJob(db, client, job);
+      assert.equal(
+        (publications[0].p_variants as unknown[]).length,
+        100,
+        "ready variants publish before the next sync chunk",
+      );
+    }
     await assert.rejects(() => advanceJob(db, client, job), /interrupted/);
-    assert.equal(publications.length, 0);
+    assert.equal(publications.length, progressive ? 1 : 0);
     job.state = JSON.parse(JSON.stringify(job.state));
     await advanceJob(db, client, job);
     await advanceJob(db, client, job);
@@ -122,8 +130,8 @@ for (const progressive of [false, true])
         ? ["ezmerch-revision-b0-c0", "ezmerch-revision-b0-c1"]
         : ["ezmerch-revision", "ezmerch-revision-2"],
     );
-    assert.equal(publications.length, 1);
-    const published = publications[0].p_variants as {
+    assert.equal(publications.length, progressive ? 2 : 1);
+    const published = publications.at(-1)!.p_variants as {
       sync_variant_id: number;
     }[];
     assert.equal(published.length, 192);

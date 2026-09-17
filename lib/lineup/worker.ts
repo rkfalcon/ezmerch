@@ -151,39 +151,6 @@ async function publishReadyBatches(
   const { state, template_snapshot: template } = job;
   const batches = state.batches!;
   const variants = state.variants!;
-  for (const [index, batch] of batches.entries()) {
-    if (!batch.images) continue;
-    const synced = batch.syncProducts ?? [];
-    const chunk = batch.variantIds.slice(
-      synced.length * 100,
-      (synced.length + 1) * 100,
-    );
-    if (!chunk.length) continue;
-    const externalId = `ezmerch-${job.generation_id ?? job.id}-b${index}-c${synced.length}`;
-    const result = await client.ensureSyncProduct(
-      externalId,
-      syncPayload(
-        template,
-        chunk.map((id) => variants.find((v) => v.id === id)!),
-        [batch],
-        batch.images[0].url,
-      ),
-    );
-    if (
-      chunk.some(
-        (id) =>
-          !result.sync_variants.some(
-            (v) => v.variant_id === id && v.id && v.synced,
-          ),
-      )
-    )
-      throw new Error(
-        "Printful is still processing product files; retry shortly",
-      );
-    batch.syncProducts = [...synced, result];
-    await saveStep(db, job, state);
-    return true;
-  }
   const syncProducts = batches.flatMap((b) => b.syncProducts ?? []);
   const syncedVariants = syncProducts.flatMap((s) => s.sync_variants);
   const images = batches.flatMap((b) => b.images ?? []);
@@ -226,6 +193,39 @@ async function publishReadyBatches(
       state.publishedVariantCount = ready.length;
       await saveStep(db, job, state);
     }
+    return true;
+  }
+  for (const [index, batch] of batches.entries()) {
+    if (!batch.images) continue;
+    const synced = batch.syncProducts ?? [];
+    const chunk = batch.variantIds.slice(
+      synced.length * 100,
+      (synced.length + 1) * 100,
+    );
+    if (!chunk.length) continue;
+    const externalId = `ezmerch-${job.generation_id ?? job.id}-b${index}-c${synced.length}`;
+    const result = await client.ensureSyncProduct(
+      externalId,
+      syncPayload(
+        template,
+        chunk.map((id) => variants.find((v) => v.id === id)!),
+        [batch],
+        batch.images[0].url,
+      ),
+    );
+    if (
+      chunk.some(
+        (id) =>
+          !result.sync_variants.some(
+            (v) => v.variant_id === id && v.id && v.synced,
+          ),
+      )
+    )
+      throw new Error(
+        "Printful is still processing product files; retry shortly",
+      );
+    batch.syncProducts = [...synced, result];
+    await saveStep(db, job, state);
     return true;
   }
   return false;
