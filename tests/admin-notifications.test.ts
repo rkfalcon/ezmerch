@@ -111,7 +111,7 @@ test("admins are notified once for signup, store create, and store claim", async
     await db.exec(`
       insert into stores(id,name,slug,claim_token,claim_token_expires_at)
       values (
-        '00000000-0000-0000-0000-0000000000s1',
+        '00000000-0000-0000-0000-0000000000d1',
         'Acme Merch',
         'acme',
         'claim-token',
