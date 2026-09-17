@@ -70,6 +70,7 @@ export async function createOrderFromPayment(data: OrderData) {
     variant_key: item.variantKey,
     quantity: item.quantity,
     price_cents: item.priceCents,
+    printful_sync_variant_id: item.printfulSyncVariantId,
   }));
 
   await supabase.from("order_items").insert(orderItems);
@@ -173,8 +174,7 @@ export async function retryFulfillment(orderId: string) {
     (p: {
       id: string;
       variants:
-        | Array<{ variant_id: number; sync_variant_id?: number }>
-        | string;
+        Array<{ variant_id: number; sync_variant_id?: number }> | string;
     }) => {
       const variants =
         typeof p.variants === "string" ? JSON.parse(p.variants) : p.variants;
@@ -195,12 +195,14 @@ export async function retryFulfillment(orderId: string) {
       variant_key: string;
       quantity: number;
       price_cents: number;
+      printful_sync_variant_id?: number | null;
     }) => ({
       productId: item.product_id,
       variantKey: item.variant_key,
       quantity: item.quantity,
       priceCents: item.price_cents,
       printfulSyncVariantId:
+        item.printful_sync_variant_id ??
         productVariantMap.get(`${item.product_id}-${item.variant_key}`) ??
         parseInt(item.variant_key, 10),
     }),

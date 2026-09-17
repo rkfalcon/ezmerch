@@ -46,12 +46,12 @@ export function StoreHeader({ store }: StoreHeaderProps) {
         </Link>
 
         <div className="flex items-center gap-4">
-          <Link
-            href={`/${store.slug}/products`}
+          <a
+            href={`/${store.slug}#products`}
             className="text-sm text-inherit hover:underline"
           >
             Products
-          </Link>
+          </a>
           <CartSheet storeSlug={store.slug}>
             <button className="relative text-sm text-inherit hover:underline">
               Cart

@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { lineupAdmin, lineupStoreAccess } from "@/lib/lineup/access";
+import { lineupStoreAccess } from "@/lib/lineup/access";
 import { runLineupWorker } from "@/lib/lineup/worker";
 
 export const maxDuration = 300;
@@ -32,11 +32,6 @@ export async function GET(request: Request) {
   }
 }
 export async function POST(request: Request) {
-  try {
-    await lineupAdmin();
-  } catch {
-    return Response.json({ error: "Admin access required" }, { status: 403 });
-  }
   try {
     const { storeId, jobId } = await request.json();
     const { db } = await lineupStoreAccess(storeId);

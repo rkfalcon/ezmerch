@@ -1,5 +1,6 @@
 "use client";
 
+import { SupplierStockStatus } from "./supplier-stock-status";
 import {
   ColorAvailabilityPills,
   enabledProductClass,
@@ -11,6 +12,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { CatalogPicker } from "@/components/dashboard/catalog-picker";
+import { categorizeProduct } from "@/lib/printful-categories";
+import { leftChestPlacement, printfulPlacement } from "@/lib/lineup/placement";
 import { retailPrice } from "@/lib/lineup/pricing";
 import type {
   CatalogProduct,
@@ -24,7 +28,7 @@ export function LineupTemplates({
   previews = {},
 }: {
   templates: ProductTemplate[];
-  previews?: Record<string, { thumbnail_url: string | null; colors: string[] }>;
+  previews?: Record<string, { thumbnail_url: string | null; colors: string[]; catalog?: boolean }>;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<ProductTemplate | null | undefined>();
@@ -120,6 +124,8 @@ export function LineupTemplates({
               />
             </CardHeader>
             <CardContent className="space-y-3">
+              <SupplierStockStatus stock={t.supplier_stock} error={t.stock_check_error} />
+              {previews[t.id]?.catalog && <p className="text-xs text-muted-foreground">Catalog preview · branded mockup appears after generation finishes.</p>}
               <p className="font-semibold">
                 {Object.keys(t.size_prices).length ? "From " : ""}$
                 {(t.retail_price_cents / 100).toFixed(2)}
@@ -176,7 +182,7 @@ function TemplateEditor({
   onSaved: () => void;
 }) {
   const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
-  const [search, setSearch] = useState("");
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [productId, setProductId] = useState(
     template?.catalog_product_id?.toString() ?? "",
   );
@@ -211,7 +217,8 @@ function TemplateEditor({
       })
       .catch((e) => {
         if (e.name !== "AbortError") setError(e.message);
-      });
+      })
+      .finally(() => { if (!controller.signal.aborted) setCatalogLoading(false); });
     return () => controller.abort();
   }, []);
   useEffect(() => {
@@ -230,7 +237,7 @@ function TemplateEditor({
         setFiles(d.files);
         setVariants(d.variants);
         setPlacement((current) =>
-          d.files.available_placements[current]
+          d.files.available_placements[printfulPlacement(current)]
             ? current
             : (Object.keys(d.files.available_placements)[0] ?? ""),
         );
@@ -247,9 +254,15 @@ function TemplateEditor({
     return () => controller.abort();
   }, [productId, technique]);
   function chooseProduct(id: string) {
+    if (id === productId) return;
     setProductId(id);
     const p = catalog.find((p) => p.id === Number(id));
-    if (p) setTitle(p.title);
+    if (p) {
+      setTitle(p.title);
+      setCategory(categorizeProduct(p.title));
+    }
+    setFiles(null);
+    setVariants([]);
   }
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -301,39 +314,9 @@ function TemplateEditor({
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="space-y-4">
-          <label className="block text-sm space-y-1">
-            Search Printful products
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Product name, brand, or model"
-            />
-          </label>
-          <label className="block text-sm space-y-1">
-            Printful product
-            <select
-              required
-              className={selectClass}
-              value={productId}
-              onChange={(e) => chooseProduct(e.target.value)}
-            >
-              <option value="">Choose a product</option>
-              {catalog
-                .filter(
-                  (p) =>
-                    !p.is_discontinued &&
-                    (p.id === Number(productId) ||
-                      `${p.title} ${p.brand} ${p.model}`
-                        .toLowerCase()
-                        .includes(search.toLowerCase())),
-                )
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title}
-                  </option>
-                ))}
-            </select>
-          </label>
+          {catalogLoading ? <p role="status">Loading Printful products…</p> : (
+            <CatalogPicker products={catalog} selectedId={productId} onSelect={chooseProduct} />
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm space-y-1">
               Product title
@@ -414,6 +397,9 @@ function TemplateEditor({
                 value={placement}
                 onChange={(e) => setPlacement(e.target.value)}
               >
+                {technique === "dtg" && files?.available_placements.front && (
+                  <option value={leftChestPlacement}>Left chest (front print preset)</option>
+                )}
                 {Object.entries(files?.available_placements ?? {}).map(
                   ([key, name]) => (
                     <option key={key} value={key}>
@@ -424,7 +410,7 @@ function TemplateEditor({
               </select>
             </label>
             <label className="text-sm space-y-1">
-              Logo scale (%)
+              {placement === leftChestPlacement ? "Logo scale (% of chest area)" : "Logo scale (%)"}
               <Input
                 type="number"
                 min="1"

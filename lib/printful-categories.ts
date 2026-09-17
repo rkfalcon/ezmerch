@@ -7,11 +7,8 @@ export const PRODUCT_CATEGORIES: Record<string, string[]> = {
     "Crop Tee",
     "Crew Neck T-Shirt",
     "Athletic T-Shirt",
-    "Performance",
-    "Cotton Crew",
-    "V-Neck",
-    "Ringer",
-    "Baseball",
+    "Baseball Tee",
+    "Tee",
   ],
   "Long Sleeve Shirts": [
     "Long Sleeve",
@@ -123,11 +120,16 @@ export const PRODUCT_CATEGORIES: Record<string, string[]> = {
 };
 
 export function categorizeProduct(title: string): string {
-  const titleLower = title.toLowerCase();
+  // Ignore brand/model text: e.g. Bella + Canvas is not a canvas print.
+  const titleLower = title.split("|")[0].toLowerCase();
+  if (/\bteddy bear\b/.test(titleLower)) return "Home & Living";
+  const priority = ["Dresses & Skirts", "Long Sleeve Shirts", "Hats & Beanies", "Polo Shirts", ...Object.keys(PRODUCT_CATEGORIES)];
 
-  for (const [category, keywords] of Object.entries(PRODUCT_CATEGORIES)) {
+  for (const category of new Set(priority)) {
+    const keywords = PRODUCT_CATEGORIES[category];
     for (const keyword of keywords) {
-      if (titleLower.includes(keyword.toLowerCase())) {
+      const escaped = keyword.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`\\b${escaped}s?\\b`).test(titleLower)) {
         return category;
       }
     }
@@ -138,4 +140,14 @@ export function categorizeProduct(title: string): string {
 
 export function getCategoryList(): string[] {
   return [...Object.keys(PRODUCT_CATEGORIES), "Other"];
+}
+
+/** Match every query word across name, brand and model, ignoring punctuation. */
+export function matchesCatalogSearch(product: { title: string; brand?: string; model?: string }, query: string) {
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const text = normalize(`${product.title} ${product.brand ?? ""} ${product.model ?? ""}`);
+  const terms = normalize(query).split(/\s+/).filter(Boolean);
+  if (terms.every((term) => text.includes(term))) return true;
+  // Support the common mistaken name without hiding genuine "custom" products.
+  return text.includes("comfort colors") && terms.every((term) => text.includes(term === "custom" ? "comfort" : term));
 }

@@ -1,15 +1,17 @@
+import { inStock, type SupplierStock } from "@/lib/supplier-stock";
 import Link from "next/link";
 import { enabledVariants, productDisplayImage } from "@/lib/product-colors";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 
 interface ProductCardProps {
   product: {
+    supplier_stock?: SupplierStock | null;
     id: string;
     title: string;
     thumbnail_url: string | null;
     variants:
       | Array<{
-          retail_price: string;
+          variant_id: number; retail_price: string;
           color?: string | null;
           image_url?: string;
         }>
@@ -23,7 +25,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product, storeSlug }: ProductCardProps) {
   const allVariants: Array<{
-    retail_price: string;
+    variant_id: number; retail_price: string;
     color?: string | null;
     image_url?: string;
   }> =
@@ -70,7 +72,7 @@ export function ProductCard({ product, storeSlug }: ProductCardProps) {
           <h3 className="font-medium truncate">{product.title}</h3>
         </CardContent>
         <CardFooter>
-          <p className="text-sm font-semibold">{priceDisplay}</p>
+          <p className="text-sm font-semibold">{inStock(variants, product.supplier_stock).length ? priceDisplay : "Sold out"}</p>
         </CardFooter>
       </Card>
     </Link>

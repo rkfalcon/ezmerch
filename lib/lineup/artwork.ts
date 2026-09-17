@@ -1,3 +1,4 @@
+import { leftChestPlacement } from "./placement";
 import sharp from "sharp";
 
 export function fitArtwork(
@@ -6,6 +7,7 @@ export function fitArtwork(
   areaWidth: number,
   areaHeight: number,
   scale: number,
+  placement = "front",
 ) {
   if (
     [width, height, areaWidth, areaHeight, scale].some(
@@ -14,17 +16,20 @@ export function fitArtwork(
     scale > 1
   )
     throw new Error("Invalid artwork dimensions");
+  const chest = placement === leftChestPlacement;
+  const boxWidth = chest ? areaWidth * 0.3 : areaWidth;
+  const boxHeight = chest ? areaHeight * 0.25 : areaHeight;
   const ratio = Math.min(
-    (areaWidth * scale) / width,
-    (areaHeight * scale) / height,
+    (boxWidth * scale) / width,
+    (boxHeight * scale) / height,
   );
   const w = Math.max(1, Math.round(width * ratio));
   const h = Math.max(1, Math.round(height * ratio));
   return {
     width: w,
     height: h,
-    left: Math.round((areaWidth - w) / 2),
-    top: Math.round((areaHeight - h) / 2),
+    left: Math.round(chest ? areaWidth * 0.75 - w / 2 : (areaWidth - w) / 2),
+    top: Math.round(chest ? areaHeight * 0.18 - h / 2 : (areaHeight - h) / 2),
   };
 }
 
@@ -41,6 +46,7 @@ export async function renderArtwork(
   width: number,
   height: number,
   scale: number,
+  placement = "front",
 ): Promise<Buffer> {
   if (width * height > 40_000_000)
     throw new Error("Print area exceeds supported image size");
@@ -51,6 +57,7 @@ export async function renderArtwork(
     width,
     height,
     scale,
+    placement,
   );
   const resized = await sharp(logo)
     .resize(fit.width, fit.height, { fit: "fill" })

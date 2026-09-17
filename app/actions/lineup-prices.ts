@@ -1,15 +1,17 @@
 "use server";
-import { lineupAdmin, lineupStoreAccess } from "@/lib/lineup/access";
+import { getUserWithRole } from "@/lib/auth";
+import { applySizePrice } from "@/lib/lineup/size-prices";
+import { lineupStoreAccess } from "@/lib/lineup/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
 export async function setProductPrice(
   productId: string,
   priceCents: number,
-  variantId?: number,
+  size?: string | number,
 ) {
   try {
-    await lineupAdmin();
+    if (!(await getUserWithRole())) throw new Error("Sign in required");
     if (
       !Number.isInteger(priceCents) ||
       priceCents <= 0 ||
@@ -19,7 +21,7 @@ export async function setProductPrice(
     const db = createAdminClient();
     const { data: product, error } = await db
       .from("products")
-      .select("store_id,variants")
+      .select("store_id,variants,updated_at")
       .eq("id", productId)
       .single();
     if (error || !product) throw new Error("Product not found");
@@ -30,17 +32,18 @@ export async function setProductPrice(
         : product.variants;
     if (!Array.isArray(variants) || !variants.length)
       throw new Error("Product has no variants");
-    const updated = variants.map(
-      (v: { variant_id: number; retail_price: string }) =>
-        variantId === undefined || v.variant_id === variantId
-          ? { ...v, retail_price: (priceCents / 100).toFixed(2) }
-          : v,
-    );
+    const updated = applySizePrice(variants, priceCents, size);
     const { error: saveError } = await db
       .from("products")
       .update({ variants: updated })
-      .eq("id", productId);
-    if (saveError) throw saveError;
+      .eq("id", productId)
+      .eq("updated_at", product.updated_at)
+      .select("id")
+      .single();
+    if (saveError)
+      throw new Error(
+        "This product changed while saving. Refresh and try the price again.",
+      );
     revalidatePath(`/dashboard/admin/stores/${store.id}`);
     revalidatePath(`/dashboard/admin/stores/${store.id}/products`);
     revalidatePath("/dashboard/store/products");

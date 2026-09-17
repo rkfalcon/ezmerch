@@ -32,6 +32,7 @@ export async function updateStoreBanner(storeId: string, formData: FormData) {
     if (error) throw error;
     revalidatePath(`/dashboard/admin/stores/${store.id}`);
     revalidatePath("/dashboard/store/settings");
+    revalidatePath("/");
     revalidatePath(`/${store.slug}`, "layout");
     return { success: true };
   } catch (error) {

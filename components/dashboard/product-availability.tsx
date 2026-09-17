@@ -1,3 +1,5 @@
+import { SupplierStockStatus } from "./supplier-stock-status";
+import type { SupplierStock } from "@/lib/supplier-stock";
 import { colorName, enabledVariants } from "@/lib/product-colors";
 
 export const enabledProductClass =
@@ -70,6 +72,7 @@ export function ColorAvailabilityPills({
 }
 
 type StoreProductAvailability = {
+  supplier_stock?: SupplierStock | null;
   published: boolean;
   global_active?: boolean;
   enabled_colors?: string[] | null;
@@ -113,6 +116,7 @@ export function StoreProductColorPills({
               ? "No enabled colors — hidden from storefront"
               : "Enabled in this store"}
       </p>
+      <SupplierStockStatus stock={product.supplier_stock} />
       <ColorAvailabilityPills
         colors={[...new Set(variantsOf(product).map(colorName))]}
         productEnabled={product.published}

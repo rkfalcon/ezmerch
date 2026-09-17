@@ -1,3 +1,4 @@
+import { LineupProductPrice } from "@/components/dashboard/lineup-product-price";
 import { productDisplayImage } from "@/lib/product-colors";
 import {
   StoreProductColorPills,
@@ -88,6 +89,7 @@ export default async function StoreOwnerProductsPage() {
                         }}
                       />
                       <StoreProductColorPills product={product} />
+                      <LineupProductPrice productId={product.id} variants={product.variants} />
                     </TableCell>
                     <TableCell>{variantCount} variants</TableCell>
                     <TableCell>

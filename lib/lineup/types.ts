@@ -1,4 +1,7 @@
+import type { SupplierStock } from "../supplier-stock";
 export interface ProductTemplate {
+  supplier_stock?: SupplierStock | null;
+  stock_check_error?: string | null;
   id: string;
   slug: string;
   title: string;
@@ -16,6 +19,7 @@ export interface ProductTemplate {
   enabled_colors?: string[] | null;
 }
 export interface CatalogVariant {
+  image?: string;
   id: number;
   product_id: number;
   name: string;
@@ -55,6 +59,9 @@ export interface MockupImage {
   variant_ids: number[];
 }
 export interface MockupBatch {
+  assetKey?: string;
+  representatives?: { id: number; variantIds: number[] }[];
+  syncProducts?: NonNullable<GenerationState["syncProducts"]>;
   variantIds: number[];
   printfile: Printfile;
   artworkUrl?: string;
@@ -64,6 +71,10 @@ export interface MockupBatch {
   downloadedImages?: MockupImage[];
 }
 export interface GenerationState {
+  progressive?: boolean;
+  instantPreview?: string | null;
+  publishedVariantCount?: number;
+  previewPlanned?: boolean;
   productId?: number;
   variants?: CatalogVariant[];
   batches?: MockupBatch[];
@@ -74,6 +85,7 @@ export interface GenerationState {
   }[];
 }
 export interface GenerationJob {
+  generation_id?: string | null;
   id: string;
   store_id: string;
   template_id: string;

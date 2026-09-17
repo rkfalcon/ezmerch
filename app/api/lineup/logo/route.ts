@@ -1,15 +1,10 @@
 import { after } from "next/server";
-import { lineupAdmin, lineupStoreAccess } from "@/lib/lineup/access";
-import { normalizeLogo } from "@/lib/lineup/artwork";
+import { lineupStoreAccess } from "@/lib/lineup/access";
+import { prepareLogo } from "@/lib/lineup/logo-preparation";
 import { runLineupWorker } from "@/lib/lineup/worker";
 
 export const maxDuration = 300;
 export async function POST(request: Request) {
-  try {
-    await lineupAdmin();
-  } catch {
-    return Response.json({ error: "Admin access required" }, { status: 403 });
-  }
   try {
     const form = await request.formData();
     const storeId = String(form.get("storeId") ?? "");
@@ -21,7 +16,10 @@ export async function POST(request: Request) {
     )
       throw new Error("Choose a PNG, JPG, or WebP logo under 4 MB");
     const { db } = await lineupStoreAccess(storeId);
-    const bytes = await normalizeLogo(Buffer.from(await file.arrayBuffer()));
+    const { bytes, warnings } = await prepareLogo(
+      Buffer.from(await file.arrayBuffer()),
+      form.get("removeBackground") !== "false",
+    );
     const path = `${storeId}/logos/${crypto.randomUUID()}.png`;
     const { error: uploadError } = await db.storage
       .from("lineup-assets")
@@ -39,7 +37,7 @@ export async function POST(request: Request) {
         console.error("Lineup worker:", error.message),
       ),
     );
-    return Response.json({ success: true, logoUrl });
+    return Response.json({ success: true, logoUrl, warnings });
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "Logo upload failed" },

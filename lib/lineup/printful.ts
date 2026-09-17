@@ -1,3 +1,4 @@
+import { printfulPlacement } from "./placement";
 import type {
   CatalogProduct,
   CatalogVariant,
@@ -53,7 +54,10 @@ export class PrintfulClient {
         String(
           json?.error?.message ?? json?.result ?? response.statusText,
         ).slice(0, 500),
-        Math.max(65_000, (Number(response.headers.get("retry-after")) || 0) * 1000 + 5000),
+        Math.max(
+          65_000,
+          (Number(response.headers.get("retry-after")) || 0) * 1000 + 5000,
+        ),
       );
     return (json?.result ?? json?.data) as T;
   }
@@ -95,11 +99,12 @@ export class PrintfulClient {
     return this.request<{ task_key: string }>(
       `/mockup-generator/create-task/${productId}`,
       {
-        variant_ids: batch.variantIds,
+        variant_ids:
+          batch.representatives?.map((r) => r.id) ?? batch.variantIds,
         format: "jpg",
         files: [
           {
-            placement: template.placement,
+            placement: printfulPlacement(template.placement),
             image_url: batch.artworkUrl,
             position: {
               area_width: width,
@@ -151,6 +156,7 @@ export function groupPrintfiles(
   variantIds: number[],
   placement: string,
 ): MockupBatch[] {
+  placement = printfulPlacement(placement);
   if (!data.available_placements[placement])
     throw new Error(
       `Printful does not support placement ${placement} for this product`,

@@ -1,4 +1,5 @@
 "use client";
+import { priceSize, sizesForPricing } from "@/lib/lineup/size-prices";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +14,12 @@ export function LineupProductPrice({
   variants: unknown;
 }) {
   const variants = (typeof input === "string" ? JSON.parse(input) : input) as {
+    size?: string | null;
     variant_id: number;
     name: string;
     retail_price: string;
   }[];
+  const sizes = sizesForPricing(variants);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [variant, setVariant] = useState("all");
@@ -32,11 +35,12 @@ export function LineupProductPrice({
     );
   async function save() {
     setBusy(true);
+    setError("");
     try {
       const result = await setProductPrice(
         productId,
         Math.round(Number(price) * 100),
-        variant === "all" ? undefined : Number(variant),
+        variant === "all" ? undefined : variant,
       );
       if (result.error) setError(result.error);
       else {
@@ -52,24 +56,25 @@ export function LineupProductPrice({
   return (
     <div className="space-y-2 max-w-xs">
       <select
-        aria-label="Variant to price"
+        aria-label="Size to price"
         value={variant}
         onChange={(e) => {
           setVariant(e.target.value);
           setPrice(
-            variants.find((v) => v.variant_id === Number(e.target.value))
+            variants.find((v) => priceSize(v) === e.target.value)
               ?.retail_price ?? variants[0].retail_price,
           );
         }}
         className="w-full rounded border bg-background p-1 text-sm"
       >
-        <option value="all">All variants</option>
-        {variants.map((v) => (
-          <option key={v.variant_id} value={v.variant_id}>
-            {v.name}
+        <option value="all">All sizes</option>
+        {sizes.map((size) => (
+          <option key={size} value={size}>
+            {size}
           </option>
         ))}
       </select>
+      <p className="text-xs text-muted-foreground">Applies to all colors in the selected size.</p>
       <Input
         aria-label="Retail price in dollars"
         type="number"

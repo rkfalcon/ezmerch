@@ -1,3 +1,4 @@
+import { templatePreview } from "@/lib/lineup/template-preview";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LineupTemplates } from "@/components/dashboard/lineup-templates";
@@ -25,7 +26,7 @@ export default async function TemplatesPage() {
     .order("created_at", { ascending: false });
   const previews: Record<
     string,
-    { thumbnail_url: string | null; colors: string[] }
+    { thumbnail_url: string | null; colors: string[]; catalog?: boolean }
   > = {};
   for (const sample of samples ?? []) {
     if (previews[sample.template_id]) continue;
@@ -43,6 +44,20 @@ export default async function TemplatesPage() {
         ),
       ],
     };
+  }
+  // New templates have no generated store sample yet; show catalog imagery and colors.
+  for (const template of data ?? []) {
+    if (previews[template.id] || !template.catalog_product_id) continue;
+    try {
+      const preview = await templatePreview(template.id);
+      previews[template.id] = {
+        thumbnail_url: preview.thumbnail_url,
+        catalog: preview.preview_source === "catalog",
+        colors: [...new Set(preview.variants.map((v) => v.color?.trim() || "Default"))],
+      };
+    } catch {
+      // A temporary catalog failure must not prevent managing other templates.
+    }
   }
   return (
     <LineupTemplates
