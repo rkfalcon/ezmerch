@@ -194,8 +194,8 @@ test("admins are notified once for signup, store create, and store claim", async
     assert.deepEqual(onboarded.rows, retry.rows);
     const onboardingNotes = (
       await db.query<{ event_key: string; message: string }>(
-        `select event_key,message from notifications where event_key='store-created:'||$1`,
-        [onboarded.rows[0].id],
+        `select event_key,message from notifications where event_key=$1`,
+        [`store-created:${onboarded.rows[0].id}`],
       )
     ).rows;
     assert.equal(onboardingNotes.length, 2);
