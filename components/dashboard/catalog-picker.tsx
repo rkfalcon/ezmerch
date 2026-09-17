@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { categorizeProduct, getCategoryList } from "@/lib/printful-categories";
+import { categorizeProduct, getCategoryList, matchesCatalogSearch } from "@/lib/printful-categories";
 import { compareDelivery, type CatalogInsight } from "@/lib/lineup/catalog-insights";
 import type { CatalogProduct } from "@/lib/lineup/types";
 
@@ -28,7 +28,7 @@ export function CatalogPicker({ products, selectedId, onSelect }: {
   }
   const filtered = available.filter((p) =>
     (category === "All products" || categorizeProduct(p.title) === category) &&
-    `${p.title} ${p.brand} ${p.model}`.toLowerCase().includes(search.trim().toLowerCase()),
+    matchesCatalogSearch(p, search),
   );
   const ids = filtered.map((p) => p.id).join(",");
   useEffect(() => {
