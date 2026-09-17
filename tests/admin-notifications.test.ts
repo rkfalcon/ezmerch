@@ -95,9 +95,6 @@ test("admins are notified once for signup, store create, and store claim", async
       "the new customer is not emailed or notified",
     );
 
-    await db.exec(`
-      insert into auth.users(id,email) values ('${signup}','new.user@example.com');
-    `).catch(() => undefined);
     await db.query(`select private.notify_admins($1,$2,$3,$4,$5)`, [
       "New account signup",
       "duplicate",
