@@ -47,7 +47,7 @@ export function StoreHeader({ store }: StoreHeaderProps) {
 
         <div className="flex items-center gap-4">
           <Link
-            href={`/${store.slug}/products`}
+            href={`/${store.slug}#products`}
             className="text-sm text-inherit hover:underline"
           >
             Products
