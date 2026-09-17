@@ -125,7 +125,7 @@ test("admins are notified once for signup, store create, and store claim", async
         event_key: string;
         store_id: string;
       }>(
-        `select message,href,event_key,store_id from notifications where event_key='store-created:00000000-0000-0000-0000-0000000000s1'`,
+        `select message,href,event_key,store_id from notifications where event_key='store-created:00000000-0000-0000-0000-0000000000d1'`,
       )
     ).rows;
     assert.equal(created.length, 2);
