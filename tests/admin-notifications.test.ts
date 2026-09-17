@@ -184,13 +184,17 @@ test("admins are notified once for signup, store create, and store claim", async
       2,
     );
 
+    await db.exec(`
+      insert into auth.users(id,email,raw_user_meta_data,email_confirmed_at)
+      values ('${selfServe}','self@example.com','{"display_name":"Casey"}',now());
+    `);
     const onboarded = await db.query<{ id: string }>(
       `select create_onboarding_store($1,'Self Serve',null,'self-serve') as id`,
-      [owner],
+      [selfServe],
     );
     const retry = await db.query<{ id: string }>(
       `select create_onboarding_store($1,'Retry',null,'retry') as id`,
-      [owner],
+      [selfServe],
     );
     assert.deepEqual(onboarded.rows, retry.rows);
     const onboardingNotes = (
