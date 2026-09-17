@@ -1,3 +1,4 @@
+import { storefrontOrigin } from "@/lib/store-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { GenerationState } from "@/lib/lineup/types";
 import { StoreBanner } from "@/components/storefront/store-banner";
@@ -5,6 +6,18 @@ import { enabledVariants } from "@/lib/product-colors";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { ProductCard } from "@/components/storefront/product-card";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ storeSlug: string }>;
+}) {
+  return {
+    alternates: {
+      canonical: `${storefrontOrigin}/${encodeURIComponent((await params).storeSlug)}`,
+    },
+  };
+}
 
 export default async function StorePage({
   params,

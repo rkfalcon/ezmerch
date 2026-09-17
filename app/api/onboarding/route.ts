@@ -1,3 +1,4 @@
+import { createWithStoreSlug } from "@/lib/onboarding/slug";
 import { after } from "next/server";
 import { onboardingStore } from "@/lib/onboarding/store";
 import { onboardingDetails } from "@/lib/onboarding/validation";
@@ -86,22 +87,15 @@ export async function POST(request: Request) {
       Buffer.from(await file.arrayBuffer()),
       form.get("removeBackground") !== "false",
     );
-    const base =
-      name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
-        .slice(0, 32) || "store";
-    const { data: id, error: createError } = await db.rpc(
-      "create_onboarding_store",
-      {
+    const id = await createWithStoreSlug(name, async (slug) => {
+      const { data, error } = await db.rpc("create_onboarding_store", {
         p_owner: user.id,
         p_name: name,
         p_website: websiteUrl,
-        p_slug: `${base}-${crypto.randomUUID().slice(0, 8)}`,
-      },
-    );
-    if (createError) throw createError;
+        p_slug: slug,
+      });
+      return { data, error };
+    });
     const { data: current, error: readError } = await db
       .from("stores")
       .select("lineup_logo_path,onboarding_started_at")

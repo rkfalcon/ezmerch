@@ -1,17 +1,12 @@
+import { cache } from "react";
+import { storeMetadata } from "@/lib/store-metadata";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { TenantThemeProvider } from "@/components/storefront/tenant-theme-provider";
 import { CartProvider } from "@/components/storefront/cart-provider";
 import { StoreHeader } from "@/components/storefront/store-header";
 
-export default async function StoreLayout({
-  params,
-  children,
-}: {
-  params: Promise<{ storeSlug: string }>;
-  children: React.ReactNode;
-}) {
-  const { storeSlug } = await params;
+const loadStore = cache(async (storeSlug: string) => {
   const supabase = await createClient();
 
   const { data: store } = await supabase
@@ -22,9 +17,27 @@ export default async function StoreLayout({
     .eq("slug", storeSlug)
     .single();
 
-  if (!store) {
-    notFound();
-  }
+  if (!store) notFound();
+  return store;
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ storeSlug: string }>;
+}) {
+  return storeMetadata(await loadStore((await params).storeSlug));
+}
+
+export default async function StoreLayout({
+  params,
+  children,
+}: {
+  params: Promise<{ storeSlug: string }>;
+  children: React.ReactNode;
+}) {
+  const { storeSlug } = await params;
+  const store = await loadStore(storeSlug);
 
   return (
     <TenantThemeProvider brandColors={store.brand_colors}>

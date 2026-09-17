@@ -1,4 +1,7 @@
 const RESERVED_SLUGS = new Set([
+  "mazellist-8d01f0e1", // Retired store URL retained as a permanent redirect.
+  "reset-password",
+  "update-password",
   "login",
   "signup",
   "dashboard",
