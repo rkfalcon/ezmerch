@@ -13,10 +13,15 @@ export default async function DashboardPage() {
     redirect("/dashboard/admin/stores");
   }
 
+  if (!user.storeId) {
+    redirect("/dashboard/onboarding");
+  }
+
   const { data: store, error } = await createAdminClient()
     .from("stores")
     .select("id,onboarding_started_at,selling_enabled")
     .eq("owner_id", user.id)
+    .eq("id", user.storeId)
     .order("created_at")
     .limit(1)
     .maybeSingle();

@@ -1,5 +1,14 @@
+import { fulfillmentConnection } from "@/lib/printful-connection";
+import { stockTechnique } from "@/lib/lineup/catalog-techniques";
+import { siteOrigin } from "@/lib/site";
+import { EARNINGS_POLICY } from "@/lib/earnings/policy";
+import {
+  calculateOrderTax,
+  taxCodeForProduct,
+  type TaxItem,
+} from "@/lib/stripe-tax";
+import { quoteCheckoutCosts } from "@/lib/checkout-costs";
 import { PrintfulClient } from "@/lib/lineup/printful";
-import { stripeReady } from "@/lib/onboarding/validation";
 import { NextResponse } from "next/server";
 import { enabledVariants, type ColorVariant } from "@/lib/product-colors";
 import { stripe } from "@/lib/stripe";
@@ -8,16 +17,22 @@ import { calculateRevenueSplit } from "@/lib/revenue";
 import type Stripe from "stripe";
 
 export async function POST(request: Request) {
-  const {
-    storeId,
-    items,
-    shippingAddress,
-    customerEmail,
-    shippingCents,
-    taxCents,
-  } = await request.json();
+  const fulfillment = await fulfillmentConnection();
+  if (fulfillment.paused) return NextResponse.json({error:"Checkout is briefly unavailable during a fulfillment update. Please try again shortly."},{status:503});
+  const { storeId, items, shippingAddress, customerEmail } =
+    await request.json();
 
-  if (!storeId || !items?.length || !shippingAddress || !customerEmail) {
+  if (
+    !storeId ||
+    !Array.isArray(items) ||
+    !items.length ||
+    !shippingAddress ||
+    !customerEmail ||
+    items.some(
+      (item) =>
+        !item || !Number.isSafeInteger(item.quantity) || item.quantity <= 0,
+    )
+  ) {
     return NextResponse.json(
       { error: "Missing required fields" },
       { status: 400 },
@@ -30,7 +45,7 @@ export async function POST(request: Request) {
   const { data: store } = await supabase
     .from("stores")
     .select(
-      "id, claimed, stripe_account_id, selling_enabled, onboarding_started_at",
+      "id, name, slug, claimed, stripe_account_id, selling_enabled, onboarding_started_at",
     )
     .eq("id", storeId)
     .single();
@@ -44,27 +59,6 @@ export async function POST(request: Request) {
       { error: "This store is getting ready to open. Please check back soon." },
       { status: 409 },
     );
-  if (store.onboarding_started_at) {
-    if (!store.stripe_account_id)
-      return NextResponse.json(
-        { error: "This store is not ready to accept payments." },
-        { status: 409 },
-      );
-    try {
-      const account = await stripe.accounts.retrieve(store.stripe_account_id);
-      if (!stripeReady(account))
-        return NextResponse.json(
-          { error: "This store is not ready to accept payments." },
-          { status: 409 },
-        );
-    } catch {
-      return NextResponse.json(
-        { error: "Unable to verify payment availability. Please try again." },
-        { status: 503 },
-      );
-    }
-  }
-
   // Server-side cart validation — look up actual prices from DB
   const productIds = [
     ...new Set(items.map((i: { productId: string }) => i.productId)),
@@ -109,6 +103,13 @@ export async function POST(request: Request) {
         ? JSON.parse(product.variants)
         : product.variants;
 
+    if (allVariants.some((v) => `${v.variant_id}` === item.variantKey && v.artwork_pending === true)) {
+      return NextResponse.json(
+        { error: "This product color is being updated with new artwork. Please remove it from your cart or choose a ready color." },
+        { status: 409 },
+      );
+    }
+
     const variant = enabledVariants(
       allVariants,
       product.enabled_colors,
@@ -125,6 +126,15 @@ export async function POST(request: Request) {
     }
 
     const priceCents = Math.round(parseFloat(variant.retail_price) * 100);
+    if (
+      !Number.isSafeInteger(priceCents) ||
+      priceCents <= 0 ||
+      !variant.sync_variant_id
+    )
+      return NextResponse.json(
+        { error: "This product is not ready for checkout." },
+        { status: 409 },
+      );
     subtotalCents += priceCents * item.quantity;
 
     validatedItems.push({
@@ -141,15 +151,16 @@ export async function POST(request: Request) {
       { error: "Checkout currently supports US delivery only." },
       { status: 400 },
     );
+  const taxItems: TaxItem[] = [];
   // Verify the exact catalog variant immediately before creating a payment.
   try {
-    const client = new PrintfulClient();
+    const client = new PrintfulClient(fetch, fulfillment.store_id);
     const templateIds = products.map((p) => p.template_id).filter(Boolean);
     const { createAdminClient } = await import("@/lib/supabase/admin");
     const { data: templates, error: templateError } = templateIds.length
       ? await createAdminClient()
           .from("product_templates")
-          .select("id,technique")
+          .select("id,technique,category")
           .in("id", templateIds)
       : { data: [], error: null };
     if (templateError) throw templateError;
@@ -158,7 +169,7 @@ export async function POST(request: Request) {
         variant: { in_stock: boolean };
         product: {
           is_discontinued: boolean;
-          techniques?: { key: string; is_default: boolean }[];
+          techniques?: { key: string; display_name: string; is_default: boolean }[];
         };
       }>(`/products/variant/${Number(item.variantKey)}`);
       if (
@@ -174,16 +185,17 @@ export async function POST(request: Request) {
         );
       const product = products.find((p) => p.id === item.productId)!;
       const template = templates?.find((t) => t.id === product.template_id);
-      const technique =
-        template?.technique === "embroidery"
-          ? "embroidery"
-          : result.product.techniques
-              ?.find((t) => t.is_default)
-              ?.key.toLowerCase();
+      taxItems.push({
+        reference: `${item.productId}:${item.variantKey}:${taxItems.length}`,
+        priceCents: item.priceCents,
+        quantity: item.quantity,
+        taxCode: taxCodeForProduct(template?.category),
+      });
+      const technique = stockTechnique(template?.technique ?? "dtg", result.product);
       if (!technique) throw new Error("Missing technique");
       const availability = await client.request<
         import("@/lib/lineup/availability").StockRow
-      >(`/v2/catalog-variants/${Number(item.variantKey)}/availability`);
+      >(`/v2/catalog-variants/${Number(item.variantKey)}/availability?selling_region_name=usa`);
       const { availableInUSA } = await import("@/lib/lineup/availability");
       if (!availableInUSA(availability, technique))
         return NextResponse.json(
@@ -204,20 +216,64 @@ export async function POST(request: Request) {
     );
   }
 
-  const finalShippingCents = shippingCents || 0;
-  const finalTaxCents = taxCents || 0;
+  let productionCostCents: number;
+  let finalShippingCents: number;
+  let finalTaxCents: number;
+  let taxCalculationId: string;
+  let split: ReturnType<typeof calculateRevenueSplit>;
+  try {
+    const quote = await quoteCheckoutCosts(shippingAddress, validatedItems, new PrintfulClient(fetch, fulfillment.store_id));
+    productionCostCents = quote.productionCostCents;
+    finalShippingCents = quote.shippingCents;
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          "We couldn't confirm fulfillment costs for this order. Please try again later. You have not been charged.",
+      },
+      { status: 503 },
+    );
+  }
+  try {
+    const tax = await calculateOrderTax(
+      stripe,
+      taxItems,
+      shippingAddress,
+      finalShippingCents,
+    );
+    finalTaxCents = tax.taxCents;
+    taxCalculationId = tax.calculationId;
+    split = calculateRevenueSplit(
+      store,
+      subtotalCents,
+      productionCostCents,
+      finalShippingCents,
+      finalTaxCents,
+      true,
+    );
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          "We couldn't calculate the order total. Check your shipping address and try again. You have not been charged.",
+      },
+      { status: 503 },
+    );
+  }
   const totalCents = subtotalCents + finalShippingCents + finalTaxCents;
-
-  // Calculate revenue split on subtotal only
-  const split = calculateRevenueSplit(store, subtotalCents);
 
   // Build PaymentIntent params
   const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
     amount: totalCents,
+    description: `VeryMerch · ${store.name}`.slice(0, 500),
     currency: "usd",
+    hooks: { inputs: { tax: { calculation: taxCalculationId } } },
     automatic_payment_methods: { enabled: true },
     metadata: {
       store_id: storeId,
+      printful_store_id: fulfillment.store_id,
+      store_name: store.name,
+      storefront_url: `${siteOrigin}/${store.slug}`,
       customer_email: customerEmail,
       items: JSON.stringify(
         validatedItems.map((i) => ({
@@ -232,20 +288,17 @@ export async function POST(request: Request) {
       subtotal_cents: subtotalCents.toString(),
       shipping_cents: finalShippingCents.toString(),
       tax_cents: finalTaxCents.toString(),
-      platform_fee_cents: split.platformKeepsAll
-        ? subtotalCents.toString()
-        : split.applicationFeeCents.toString(),
+      tax_calculation_id: taxCalculationId,
+      // Existing order reports subtract this value from the subtotal for owner earnings.
+      platform_fee_cents: split.platformRetainedSubtotalCents.toString(),
+      production_cost_cents: productionCostCents.toString(),
+      owner_earnings_cents: split.ownerEarningsCents.toString(),
+      platform_profit_cents: split.platformProfitCents.toString(),
+      revenue_split_version: EARNINGS_POLICY,
     },
   };
 
-  // Add Stripe Connect transfer for claimed stores
-  if (!split.platformKeepsAll && split.destinationAccountId) {
-    paymentIntentParams.application_fee_amount = split.applicationFeeCents;
-    paymentIntentParams.transfer_data = {
-      destination: split.destinationAccountId,
-    };
-  }
-
+  // Owner earnings are transferred separately after payment succeeds.
   try {
     const paymentIntent =
       await stripe.paymentIntents.create(paymentIntentParams);

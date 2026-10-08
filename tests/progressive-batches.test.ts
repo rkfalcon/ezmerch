@@ -40,3 +40,11 @@ test("first color includes its sizes; same-color images only share identical pri
     variants.map((v) => v.id),
   );
 });
+
+test('new lineups batch ten colors after the single-color first preview',()=>{
+ const variants=Array.from({length:25},(_,i)=>({id:i+1,color:i===0?'Black':`Color ${i}`,in_stock:true}) as CatalogVariant);
+ const batches=[{printfile:{printfile_id:1,width:100,height:100,dpi:150},variantIds:variants.map(v=>v.id)}];
+ const result=colorBatches(batches,variants);
+ assert.deepEqual(result.map(b=>b.representatives?.length),[1,10,10,4]);
+ assert.deepEqual(result.flatMap(b=>b.variantIds),variants.map(v=>v.id));
+});

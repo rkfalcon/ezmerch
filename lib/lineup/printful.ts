@@ -1,3 +1,6 @@
+import { addInsideLabels } from "./inside-label-server";
+import { printfulCredentials } from "../printful-connection";
+import { explicitTechnique } from "./catalog-techniques";
 import { printfulPlacement } from "./placement";
 import type {
   CatalogProduct,
@@ -24,7 +27,7 @@ interface SyncPayload {
     files: Array<{
       url: string;
       type: string;
-      options?: { id: string; value: boolean }[];
+      options?: { id: string; value: boolean | string }[];
     }>;
   }>;
 }
@@ -33,20 +36,35 @@ export interface SyncResult {
   sync_variants: Array<{ id: number; variant_id: number; synced: boolean }>;
 }
 
+export function mockupQuotaCooldown(headers: Headers): number {
+  if (headers.get("x-ratelimit-remaining") !== "0") return 0;
+  // Live tests showed throttling after the advertised reset. Allow a full quiet
+  // minute once exhausted, without blocking polling, downloads or publication.
+  const reset = Number(headers.get("x-ratelimit-reset"));
+  return Math.min(300000, Math.max(65000, Number.isFinite(reset) ? (reset + 5) * 1000 : 0));
+}
+
 export class PrintfulClient {
-  constructor(private fetcher: typeof fetch = fetch) {}
+  mockupCooldownMs = 0;
+  constructor(private fetcher: typeof fetch = fetch, private storeId?: string) {}
   async request<T>(path: string, body?: unknown): Promise<T> {
+    const credentials = await printfulCredentials(this.storeId);
     const response = await this.fetcher(`https://api.printful.com${path}`, {
       method: body === undefined ? "GET" : "POST",
       headers: {
-        Authorization: `Bearer ${process.env.PRINTFUL_API_TOKEN ?? ""}`,
-        "X-PF-Store-Id": process.env.PRINTFUL_STORE_ID ?? "",
+        Authorization: `Bearer ${credentials.token}`,
+        "X-PF-Store-Id": credentials.storeId ?? "",
         "Content-Type": "application/json",
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
       signal: AbortSignal.timeout(20_000),
     });
+    if (path.startsWith("/mockup-generator/create-task/")) {
+      this.mockupCooldownMs = mockupQuotaCooldown(response.headers);
+      const rateHeaders = Object.fromEntries([...response.headers].filter(([name]) => /rate.?limit|retry-after/i.test(name)));
+      console.info("lineup.printful_submission", { status: response.status, rateHeaders });
+    }
     const json = await response.json().catch(() => null);
     if (!response.ok)
       throw new PrintfulError(
@@ -71,9 +89,9 @@ export class PrintfulClient {
     }>(`/products/${id}`);
   }
   printfiles(id: number, technique: string) {
-    // The default technique works for DTG/sublimation; embroidery requires explicit selection.
+    // Preserve legacy defaults; alternate techniques must be explicit.
     return this.request<Printfiles>(
-      `/mockup-generator/printfiles/${id}${technique === "embroidery" ? "?technique=EMBROIDERY" : ""}`,
+      `/mockup-generator/printfiles/${id}${explicitTechnique(technique) ? `?technique=${encodeURIComponent(explicitTechnique(technique)!)}` : ""}`,
     );
   }
   async resolve(template: ProductTemplate): Promise<number> {
@@ -94,6 +112,7 @@ export class PrintfulClient {
     productId: number,
     batch: MockupBatch,
     template: ProductTemplate,
+    options?: string[],
   ) {
     const { width, height } = batch.printfile;
     return this.request<{ task_key: string }>(
@@ -102,6 +121,7 @@ export class PrintfulClient {
         variant_ids:
           batch.representatives?.map((r) => r.id) ?? batch.variantIds,
         format: "jpg",
+        ...(options ? { options } : {}),
         files: [
           {
             placement: printfulPlacement(template.placement),
@@ -116,8 +136,8 @@ export class PrintfulClient {
             },
           },
         ],
-        ...(template.technique === "embroidery"
-          ? { technique: "EMBROIDERY" }
+        ...(explicitTechnique(template.technique)
+          ? { technique: explicitTechnique(template.technique) }
           : {}),
         ...(template.option_groups.length
           ? { option_groups: template.option_groups }
@@ -129,7 +149,7 @@ export class PrintfulClient {
     return this.request<{
       status: string;
       error?: string;
-      mockups?: { mockup_url: string; variant_ids: number[] }[];
+      mockups?: import("./gallery").SupplierMockup[];
     }>(`/mockup-generator/task?task_key=${encodeURIComponent(taskKey)}`);
   }
   async ensureSyncProduct(
@@ -143,8 +163,9 @@ export class PrintfulClient {
       if (!(error instanceof PrintfulError) || error.status !== 404)
         throw error;
     }
+    const branded = await addInsideLabels(payload, this.request.bind(this));
     await this.request("/store/products", {
-      ...payload,
+      ...branded,
       sync_product: { ...payload.sync_product, external_id: externalId },
     });
     return this.request<SyncResult>(path);

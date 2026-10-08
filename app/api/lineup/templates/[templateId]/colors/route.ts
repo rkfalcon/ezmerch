@@ -1,3 +1,4 @@
+import { assertColorLimit } from "@/lib/lineup/color-limit";
 import { lineupAdmin } from "@/lib/lineup/access";
 import { templatePreview } from "@/lib/lineup/template-preview";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -39,6 +40,7 @@ export async function PATCH(request: Request, context: Context) {
       template.variants,
       (await request.json()).colors,
     );
+    assertColorLimit(colors);
     const { error } = await createAdminClient()
       .from("product_templates")
       .update({ enabled_colors: colors })

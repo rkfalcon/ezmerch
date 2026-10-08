@@ -61,14 +61,14 @@ export function colorBatches(
   const first = ordered.shift();
   if (!first) return [];
   const result = [first];
-  // Five colors per task, rather than five size/color combinations.
+  // Ten colors per task, verified against Printful; the first color stays separate.
   for (const group of ordered) {
     const target = result
       .slice(1)
       .find(
         (b) =>
           b.printfile.printfile_id === group.printfile.printfile_id &&
-          b.representatives!.length < 5,
+          b.representatives!.length < 10,
       );
     if (target) {
       target.variantIds.push(...group.variantIds);

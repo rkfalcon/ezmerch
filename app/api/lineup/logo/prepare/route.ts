@@ -1,25 +1,45 @@
+import { startLogoEnhancement } from "@/lib/lineup/start-logo-enhancement";
+import { needsAutomaticEnhancement } from "@/lib/lineup/enhancement-policy";
 import { getUser } from "@/lib/auth";
-import { prepareLogo } from "@/lib/lineup/logo-preparation";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createPreparation, preparationView } from "@/lib/lineup/prepared-logo";
+export const maxDuration = 60;
 export async function POST(request: Request) {
-  if (!(await getUser()))
+  const user = await getUser();
+  if (!user?.email_confirmed_at)
     return Response.json(
-      { error: "Sign in to prepare your logo." },
+      { error: "Sign in and verify your email to prepare a logo." },
       { status: 401 },
     );
   try {
     const form = await request.formData();
     const file = form.get("logo");
-    if (!(file instanceof File) || !file.size || file.size > 4 * 1024 * 1024)
-      throw new Error("Choose a logo under 4 MB.");
-    const result = await prepareLogo(
-      Buffer.from(await file.arrayBuffer()),
+    if (!(file instanceof File)) throw new Error("Choose a logo.");
+    const db = createAdminClient();
+    let row = await createPreparation(
+      db,
+      user.id,
+      file,
       form.get("removeBackground") !== "false",
     );
+    let enhancementError: string | undefined;
+    if (
+      row.status === "clean" &&
+      process.env.FAL_KEY &&
+      needsAutomaticEnhancement(row.metadata.width, row.metadata.height)
+    ) {
+      try {
+        row = await startLogoEnhancement(db, row);
+      } catch (e) {
+        enhancementError =
+          e instanceof Error
+            ? e.message
+            : "Automatic enhancement could not start.";
+      }
+    }
     return Response.json({
-      preview: `data:image/png;base64,${result.bytes.toString("base64")}`,
-      warnings: result.warnings,
-      width: result.width,
-      height: result.height,
+      ...(await preparationView(db, row)),
+      ...(enhancementError ? { error: enhancementError } : {}),
     });
   } catch (e) {
     return Response.json(

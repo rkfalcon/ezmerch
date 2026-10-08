@@ -17,6 +17,7 @@ test("preview jobs have priority; replacement revokes old leases and preserves p
       "20260917011458_product_default_color.sql",
       "20260917172317_preview_first_logo_regeneration.sql",
       "20260917192022_progressive_lineup_publication.sql",
+      "20260921145708_hold_previous_artwork_during_regeneration.sql",
     ])
       await db.exec(readFileSync(`supabase/migrations/${migration}`, "utf8"));
     await db.exec(`update product_templates set active=true where slug in ('t-shirt','hoodie');insert into stores(name,slug,lineup_logo_path)values('Store','test','store/old.png');
@@ -36,6 +37,8 @@ test("preview jobs have priority; replacement revokes old leases and preserves p
     await db.exec(
       `update stores set lineup_logo_path='store/new.png' where slug='test';`,
     );
+    const held = (await db.query<{variants: {artwork_pending?: boolean}[]}>("select variants from products")).rows[0];
+    assert.equal(held.variants[0].artwork_pending, true);
     await assert.rejects(
       db.query("select complete_lineup_job($1,$2,1,$3::jsonb,$4::jsonb)", [
         claim.id,
@@ -83,6 +86,16 @@ test("preview jobs have priority; replacement revokes old leases and preserves p
       )
     ).rows[0];
     assert.equal(partial.variants.length, 2);
+    const mixed = partial.variants as {variant_id: number; artwork_pending?: boolean}[];
+    assert.equal(mixed.find(v => v.variant_id === 1)?.artwork_pending, true);
+    assert.notEqual(mixed.find(v => v.variant_id === 2)?.artwork_pending, true);
+    await db.exec(`update product_generation_jobs set state='{"batches":[{"images":[{"url":"preview","variant_ids":[2]}]}]}' where id='${claim.id}';`);
+    const holdMigration = readFileSync("supabase/migrations/20260921145708_hold_previous_artwork_during_regeneration.sql", "utf8");
+    await db.exec(holdMigration.slice(holdMigration.indexOf("-- Apply to in-progress")));
+    const backfilled = (await db.query<{variants: typeof mixed}>("select variants from products")).rows[0].variants;
+    assert.equal(backfilled.find(v => v.variant_id === 1)?.artwork_pending, true);
+    assert.notEqual(backfilled.find(v => v.variant_id === 2)?.artwork_pending, true);
+
     assert.equal(
       (partial.variants[0] as { retail_price: string }).retail_price,
       "99.00",

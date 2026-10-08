@@ -58,14 +58,14 @@ export default async function AdminOverviewPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Platform Fees</CardDescription>
+            <CardDescription>Platform Retained</CardDescription>
             <CardTitle className="text-3xl">
               ${(platformFees / 100).toFixed(2)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              40% of claimed store subtotals + 100% of unclaimed
+              Includes production costs and VeryMerch’s share; excludes shipping and tax
             </p>
           </CardContent>
         </Card>

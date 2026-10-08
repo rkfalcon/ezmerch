@@ -1,8 +1,12 @@
+import { tryScheduleLineupWakeup } from "@/lib/lineup/queue";
+import { jobPreview } from "@/lib/lineup/job-preview";
+import { generationUnavailable } from "@/lib/lineup/generation-availability";
+import { createQuickPreviews } from "@/lib/lineup/quick-previews";
 import { createWithStoreSlug } from "@/lib/onboarding/slug";
 import { after } from "next/server";
 import { onboardingStore } from "@/lib/onboarding/store";
 import { onboardingDetails } from "@/lib/onboarding/validation";
-import { prepareLogo } from "@/lib/lineup/logo-preparation";
+import { approvedLogo, storeApprovedLogo } from "@/lib/lineup/prepared-logo";
 import { runLineupWorker } from "@/lib/lineup/worker";
 import type { GenerationState } from "@/lib/lineup/types";
 import { productDisplayImage } from "@/lib/product-colors";
@@ -18,7 +22,9 @@ export async function GET() {
     ] = await Promise.all([
       db
         .from("product_generation_jobs")
-        .select("id,template_id,status,state,template_snapshot")
+        .select(
+          "id,template_id,status,state,last_error,template_snapshot,quick_preview_url,quick_preview_plan",
+        )
         .eq("store_id", store.id),
       db
         .from("products")
@@ -42,17 +48,15 @@ export async function GET() {
           product &&
           (!job || job.status === "completed" || !!state?.publishedVariantCount)
             ? productDisplayImage(product)
-            : (batches.flatMap((b) => b.images ?? b.downloadedImages ?? [])[0]
-                ?.url ??
-              state?.instantPreview ??
-              null),
+            : job ? jobPreview(state ?? {}, job.template_snapshot, job.quick_preview_url, job.quick_preview_plan as GenerationState["artworkPlan"]).image : null,
         ready:
           !!product &&
           (!job ||
             job.status === "completed" ||
             !!state?.publishedVariantCount),
         jobId: job?.id,
-        status:
+        quality: state?.printQuality,
+        status: generationUnavailable(job?.last_error) ? "unavailable" :
           product &&
           (!job || job.status === "completed" || !!state?.publishedVariantCount)
             ? "ready"
@@ -88,13 +92,8 @@ export async function POST(request: Request) {
       form.get("name"),
       form.get("website"),
     );
-    const file = form.get("logo");
-    if (!(file instanceof File) || !file.size || file.size > 4 * 1024 * 1024)
-      throw new Error("Choose a PNG, JPG, or WebP logo under 4 MB.");
-    const { bytes, warnings } = await prepareLogo(
-      Buffer.from(await file.arrayBuffer()),
-      form.get("removeBackground") !== "false",
-    );
+    const logo = await approvedLogo(db, user.id, form);
+    const warnings = logo.warnings;
     const id = await createWithStoreSlug(name, async (slug) => {
       const { data, error } = await db.rpc("create_onboarding_store", {
         p_owner: user.id,
@@ -117,13 +116,7 @@ export async function POST(request: Request) {
       );
     if (current.lineup_logo_path)
       return Response.json({ success: true, warnings });
-    const path = `${id}/logos/${crypto.randomUUID()}.png`;
-    const { error: uploadError } = await db.storage
-      .from("lineup-assets")
-      .upload(path, bytes, { contentType: "image/png" });
-    if (uploadError) throw uploadError;
-    const logoUrl = db.storage.from("lineup-assets").getPublicUrl(path)
-      .data.publicUrl;
+    const { path, logoUrl } = await storeApprovedLogo(db, id, logo);
     const { error } = await db
       .from("stores")
       .update({
@@ -137,7 +130,12 @@ export async function POST(request: Request) {
       .is("lineup_logo_path", null);
     if (error) throw error;
     after(() =>
-      runLineupWorker().catch((e) =>
+      createQuickPreviews(id, path).catch((e) =>
+        console.error("Quick previews:", e.message),
+      ),
+    );
+    after(() =>
+      runLineupWorker().finally(() => tryScheduleLineupWakeup()).catch((e) =>
         console.error("Onboarding generation:", e.message),
       ),
     );

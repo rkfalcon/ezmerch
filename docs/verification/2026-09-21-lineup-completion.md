@@ -1,0 +1,7 @@
+# Fast previews and full-lineup completion
+
+Scope: quick preview placement assessment, stored preview plan, shared preview selection, dashboard copy, and durable full-lineup dashboard/email notification trigger.
+
+Quick previews now assess the uploaded metadata against the same in-stock variant print areas and sizing planner used by generation. They remain explicitly approximate and cannot publish variants or approve quality. Stored preview-plan metadata allows matching prepared previews after a sizing adjustment. Embroidery derivatives still require their own mockups. The trigger records one notification per owner/admin and aggregate generation, with one email queue entry per notification, after all active jobs complete. Failed or stock-wait jobs prevent premature completion. Messaging distinguishes a launched/published storefront from pending launch or draft products. Supplier-unavailable colors are excluded explicitly.
+
+Verification: 126 tests pass, TypeScript passes, scoped lint zero errors (existing img warnings). PGlite verifies waiting/failure exclusion, owner/admin recipients, duplicate prevention, new-generation notification, and launch-aware copy. Source review covered generation guards on preview writes and notification recipient/URL selection. Existing global email queue is reused; no test completion emails sent to real users. No guarantee of literal zero-latency previews: supplier layout retrieval and compositing still take time. No claim that a quick preview is a physical print approval.

@@ -1,5 +1,6 @@
 import type { SupplierStock } from "../supplier-stock";
 export interface ProductTemplate {
+  allow_front_fallback?: boolean;
   supplier_stock?: SupplierStock | null;
   stock_check_error?: string | null;
   id: string;
@@ -16,6 +17,7 @@ export interface ProductTemplate {
   scale: number;
   option_groups: string[];
   active: boolean;
+  disabled_at?: string | null;
   enabled_colors?: string[] | null;
 }
 export interface CatalogVariant {
@@ -31,13 +33,15 @@ export interface CatalogVariant {
   availability_status?: { region: string; status: string }[];
 }
 export interface CatalogProduct {
+  techniques?: { key: string; display_name: string; is_default: boolean }[];
+  description?: string;
   id: number;
   title: string;
   model: string;
   brand: string;
   image: string;
   is_discontinued: boolean;
-  files?: { id: string; type: string; title: string }[];
+  files?: { id: string; type: string; title: string; additional_price?: string | null }[];
 }
 export interface Printfile {
   printfile_id: number;
@@ -71,8 +75,12 @@ export interface MockupBatch {
   downloadedImages?: MockupImage[];
 }
 export interface GenerationState {
+  embroideryLogoPath?: string;
+  artworkPlan?: { scale: number; placement: string };
+  printQuality?: import("./print-quality").PrintQualityReport;
   progressive?: boolean;
   instantPreview?: string | null;
+  instantPreviewPlan?: { scale: number; placement: string };
   publishedVariantCount?: number;
   previewPlanned?: boolean;
   productId?: number;

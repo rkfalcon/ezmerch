@@ -94,3 +94,8 @@ test("default product image follows enabled colors and restores a saved preferen
     /generated mockup/,
   );
 });
+test('regenerating artwork is excluded from storefront and checkout selection',()=>{
+ const changing=[{...variants[0],artwork_pending:true},{...variants[1],artwork_pending:false},variants[2]];
+ assert.deepEqual(enabledVariants(changing).map(v=>v.variant_id),[2,3]);
+ assert.equal(enabledVariants(changing).find(v=>v.variant_id===1),undefined);
+});

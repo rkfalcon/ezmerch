@@ -1,3 +1,5 @@
+import { addInsideLabels } from "./lineup/inside-label-server";
+import { printfulCredentials } from "./printful-connection";
 import type {
   PrintfulCatalogProduct,
   PrintfulCatalogVariant,
@@ -9,8 +11,6 @@ import type {
 } from "./printful-types";
 
 const PRINTFUL_API = "https://api.printful.com";
-const PRINTFUL_TOKEN = process.env.PRINTFUL_API_TOKEN!;
-const PRINTFUL_STORE_ID = process.env.PRINTFUL_STORE_ID!;
 
 class PrintfulRateLimiter {
   private queue: Array<() => void> = [];
@@ -44,17 +44,19 @@ const rateLimiter = new PrintfulRateLimiter();
 
 async function printfulFetch<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  storeId?: string
 ): Promise<T> {
   await rateLimiter.acquire();
 
   try {
+    const credentials = await printfulCredentials(storeId);
     const response = await fetch(`${PRINTFUL_API}${endpoint}`, {
       ...options,
       headers: {
-        Authorization: `Bearer ${PRINTFUL_TOKEN}`,
+        Authorization: `Bearer ${credentials.token}`,
         "Content-Type": "application/json",
-        "X-PF-Store-Id": PRINTFUL_STORE_ID,
+        "X-PF-Store-Id": credentials.storeId,
         ...options.headers,
       },
     });
@@ -76,17 +78,19 @@ async function printfulFetch<T>(
 // V2 API helper (different path prefix)
 async function printfulFetchV2<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  storeId?: string
 ): Promise<T> {
   await rateLimiter.acquire();
 
   try {
+    const credentials = await printfulCredentials(storeId);
     const response = await fetch(`${PRINTFUL_API}/v2${endpoint}`, {
       ...options,
       headers: {
-        Authorization: `Bearer ${PRINTFUL_TOKEN}`,
+        Authorization: `Bearer ${credentials.token}`,
         "Content-Type": "application/json",
-        "X-PF-Store-Id": PRINTFUL_STORE_ID,
+        "X-PF-Store-Id": credentials.storeId,
         ...options.headers,
       },
     });
@@ -220,7 +224,7 @@ export async function createSyncProduct(data: {
 }): Promise<PrintfulSyncProduct> {
   return printfulFetch<PrintfulSyncProduct>("/store/products", {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify(await addInsideLabels(data, printfulFetch)),
   });
 }
 
@@ -265,19 +269,19 @@ export async function createOrder(data: {
     sync_variant_id: number;
     quantity: number;
   }>;
-}): Promise<PrintfulOrder> {
+}, storeId?: string): Promise<PrintfulOrder> {
   // Create as draft (not charged yet)
   return printfulFetch<PrintfulOrder>("/orders", {
     method: "POST",
     body: JSON.stringify(data),
-  });
+  }, storeId);
 }
 
-export async function confirmOrder(orderId: number): Promise<PrintfulOrder> {
+export async function confirmOrder(orderId: number, storeId?: string): Promise<PrintfulOrder> {
   // Confirm the order — Printful charges at this point
   return printfulFetch<PrintfulOrder>(`/orders/${orderId}/confirm`, {
     method: "POST",
-  });
+  }, storeId);
 }
 
 export async function getOrder(orderId: number): Promise<PrintfulOrder> {

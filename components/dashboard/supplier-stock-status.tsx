@@ -9,14 +9,14 @@ export function SupplierStockStatus({
   return (
     <p className="text-xs text-amber-800" role="status">
       {error
-        ? "Printful stock check delayed; keeping the last confirmed status."
+        ? "Stock check delayed; keeping the last confirmed status."
         : !stock
-          ? "Printful stock check pending."
+          ? "Stock check pending."
           : stock.discontinued
-            ? "Discontinued by Printful — purchases blocked."
+            ? "Discontinued — purchases blocked."
             : stock.unavailable.length
-              ? `${stock.unavailable.length} size/color variants unavailable from Printful for US delivery. Purchases of these variants are blocked.`
-              : "Printful stock checked · available for US delivery."}
+              ? `${stock.unavailable.length} size/color variants unavailable for US delivery. Purchases of these variants are blocked.`
+              : "Stock checked · available for US delivery."}
     </p>
   );
 }

@@ -1,4 +1,5 @@
 export interface ColorVariant {
+  artwork_pending?: boolean;
   variant_id: number;
   name: string;
   size: string;
@@ -12,13 +13,14 @@ export function colorName(variant: { color?: string | null }): string {
   return variant.color?.trim() || "Default";
 }
 
-export function enabledVariants<T extends { color?: string | null }>(
+export function enabledVariants<T extends { color?: string | null; artwork_pending?: boolean }>(
   variants: T[],
   colors?: string[] | null,
   globalColors?: string[] | null,
 ): T[] {
   return variants.filter(
     (v) =>
+      v.artwork_pending !== true &&
       (colors == null || colors.includes(colorName(v))) &&
       (globalColors == null || globalColors.includes(colorName(v))),
   );
@@ -93,4 +95,9 @@ export function validateDefaultColor(
       "Choose an enabled color with a generated mockup for the default image.",
     );
   return value;
+}
+
+/** Owners choose from globally available colors; admins retain the full inventory. */
+export function dashboardColors(colors: string[], ownerView: boolean, globalActive = true, globalColors?: string[] | null) {
+  return ownerView ? colors.filter(color => globalActive && (globalColors == null || globalColors.includes(color))) : colors;
 }

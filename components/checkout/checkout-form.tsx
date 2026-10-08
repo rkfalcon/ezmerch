@@ -71,12 +71,10 @@ export function CheckoutForm({ orderTotals, onSuccess }: CheckoutFormProps) {
               : `$${(orderTotals.shippingCents / 100).toFixed(2)}`}
           </span>
         </div>
-        {orderTotals.taxCents > 0 && (
           <div className="flex justify-between text-sm">
             <span>Tax</span>
             <span>${(orderTotals.taxCents / 100).toFixed(2)}</span>
           </div>
-        )}
         <div className="border-t pt-2 flex justify-between font-medium">
           <span>Total</span>
           <span>${(orderTotals.totalCents / 100).toFixed(2)}</span>

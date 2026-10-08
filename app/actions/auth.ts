@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { safeAuthRedirect } from "@/lib/auth-redirect";
 import { redirect } from "next/navigation";
 
 export async function signup(formData: FormData) {
@@ -9,7 +10,7 @@ export async function signup(formData: FormData) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const displayName = formData.get("displayName") as string;
-  const next = (formData.get("next") as string) || "/dashboard";
+  const next = safeAuthRedirect(formData.get("next"));
 
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -40,7 +41,7 @@ export async function login(formData: FormData) {
 
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-  const next = (formData.get("next") as string) || "/dashboard";
+  const next = safeAuthRedirect(formData.get("next"));
 
   const { error } = await supabase.auth.signInWithPassword({
     email,

@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Card,
   CardContent,
   CardDescription,
@@ -29,6 +22,7 @@ interface StoreFormProps {
     brand_colors: { primary: string; accent: string };
     shipping_policy: string;
     shipping_discount_cents: number | null;
+    show_on_homepage?: boolean;
     claim_token: string | null;
   };
 }
@@ -47,9 +41,6 @@ export function StoreForm({ store }: StoreFormProps) {
   const [pending, setPending] = useState(false);
   const [name, setName] = useState(store?.name ?? "");
   const [slug, setSlug] = useState(store?.slug ?? "");
-  const [shippingPolicy, setShippingPolicy] = useState(
-    store?.shipping_policy ?? "passthrough"
-  );
 
   const isEditing = !!store;
 
@@ -57,7 +48,8 @@ export function StoreForm({ store }: StoreFormProps) {
     setPending(true);
     setError(null);
 
-    formData.set("shippingPolicy", shippingPolicy);
+    formData.set("shippingPolicy", "passthrough");
+    formData.set("shippingDiscountCents", "0");
 
     const result = isEditing
       ? await updateStore(store.id, formData)
@@ -86,6 +78,13 @@ export function StoreForm({ store }: StoreFormProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="showOnHomepage" defaultChecked={store?.show_on_homepage ?? true} />
+              <span>Show on homepage</span>
+            </label>
+            <p className="text-sm text-muted-foreground">Include this store in Browse Stores when it has products available for sale. Turning this off keeps the direct store link accessible.</p>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="name">Store Name</Label>
             <Input
               id="name"
@@ -105,7 +104,7 @@ export function StoreForm({ store }: StoreFormProps) {
               <Label htmlFor="slug">URL Slug</Label>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">
-                  ezmerch.store/
+                  verymerch.com/
                 </span>
                 <Input
                   id="slug"
@@ -175,47 +174,8 @@ export function StoreForm({ store }: StoreFormProps) {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Shipping</CardTitle>
-          <CardDescription>
-            How shipping costs are handled for this store
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Shipping Policy</Label>
-            <Select value={shippingPolicy} onValueChange={(v) => { if (v) setShippingPolicy(v); }}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="passthrough">
-                  Pass through at cost
-                </SelectItem>
-                <SelectItem value="free">Free shipping (store covers)</SelectItem>
-                <SelectItem value="flat_discount">
-                  Flat discount on shipping
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {shippingPolicy === "flat_discount" && (
-            <div className="space-y-2">
-              <Label htmlFor="shippingDiscountCents">
-                Shipping Discount (cents)
-              </Label>
-              <Input
-                id="shippingDiscountCents"
-                name="shippingDiscountCents"
-                type="number"
-                min="0"
-                defaultValue={store?.shipping_discount_cents ?? ""}
-                placeholder="500 = $5.00 discount"
-              />
-            </div>
-          )}
-        </CardContent>
+        <CardHeader><CardTitle>Shipping</CardTitle></CardHeader>
+        <CardContent>Customers pay the full shipping cost at checkout. Shipping is separate from the 70/30 merchandise profit split.</CardContent>
       </Card>
 
       <div className="flex gap-3">

@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { previewMetadata } from "./preview-cache";
 import { createHash } from "node:crypto";
 import type { createAdminClient } from "../supabase/admin";
 import type { PrintfulClient } from "./printful";
@@ -60,6 +61,20 @@ async function asset(url: string) {
     chunks.push(value);
   }
   return Buffer.concat(chunks);
+}
+
+// Shared blank assets contain no uploaded artwork. Supplier URLs identify their source assets.
+async function cachedAsset(db: ReturnType<typeof createAdminClient>, url: string) {
+  const key = createHash("sha256").update(url).digest("hex");
+  const path = `_preview-cache/${key}`;
+  const storage = db.storage.from("lineup-assets");
+  const { data } = await storage.download(path);
+  if (data) return Buffer.from(await data.arrayBuffer());
+  const bytes = await sharp(await asset(url), { limitInputPixels: 40_000_000 })
+    .resize({ width: 900, withoutEnlargement: true }).png().toBuffer();
+  const { error } = await storage.upload(path, bytes, { contentType: "image/png", upsert: true });
+  if (error) console.warn("Preview asset cache write failed", error.statusCode);
+  return bytes;
 }
 
 export async function composePreview(
@@ -139,31 +154,18 @@ export async function instantPreview(
   logo: Buffer,
   storeId: string,
   generation: string,
+  approximate = false,
 ): Promise<string | null> {
   // Flat printed fronts only. Curved surfaces and embroidery need Printful's renderer.
   if (
-    template.technique === "embroidery" ||
-    !["front", "front_left_chest"].includes(template.placement)
+    !approximate &&
+    (template.technique === "embroidery" ||
+      !["front", "front_left_chest"].includes(template.placement))
   )
     return null;
   const key = `${productId}:${template.technique}`;
-  const { data: cached } = await db
-    .from("lineup_preview_templates")
-    .select("payload,updated_at")
-    .eq("id", key)
-    .maybeSingle();
-  let data: Templates;
-  if (cached && Date.now() - Date.parse(cached.updated_at) < 24 * 60 * 60_000)
-    data = cached.payload as Templates;
-  else {
-    data = await client.request<Templates>(
-      `/mockup-generator/templates/${productId}`,
-    );
-    const { error } = await db
-      .from("lineup_preview_templates")
-      .upsert({ id: key, payload: data, updated_at: new Date().toISOString() });
-    if (error) throw error;
-  }
+  const data = await previewMetadata<Templates>(db, key, () =>
+    client.request<Templates>(`/mockup-generator/templates/${productId}`));
   const id = data.variant_mapping
     .find((v) => v.variant_id === variantId)
     ?.templates.find(
@@ -172,9 +174,9 @@ export async function instantPreview(
   const layout = data.templates.find((t) => t.template_id === id);
   if (!layout) return null;
   const [image, background] = await Promise.all([
-    asset(layout.image_url),
+    cachedAsset(db, layout.image_url),
     layout.background_url
-      ? asset(layout.background_url)
+      ? cachedAsset(db, layout.background_url)
       : Promise.resolve(null),
   ]);
   const bytes = await composePreview(
@@ -185,7 +187,7 @@ export async function instantPreview(
     Number(template.scale),
     template.placement,
   );
-  const path = `${storeId}/${generation}/instant-${createHash("sha256").update(key).digest("hex").slice(0, 12)}.jpg`;
+  const path = `${storeId}/${generation}/instant-${createHash("sha256").update(`${key}:${template.scale}:${template.placement}:`).update(logo).digest("hex").slice(0, 12)}.jpg`;
   const storage = db.storage.from("lineup-assets");
   const { error } = await storage.upload(path, bytes, {
     contentType: "image/jpeg",

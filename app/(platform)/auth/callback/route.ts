@@ -1,3 +1,4 @@
+import { safeAuthRedirect } from "@/lib/auth-redirect";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -27,18 +28,22 @@ export async function GET(request: Request) {
   if (authenticated) {
     // If we have an explicit next param, use it
     if (next) {
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(`${origin}${safeAuthRedirect(next)}`);
     }
 
     // Otherwise check if the user has a pending redirect in their metadata
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     const pendingRedirect = user?.user_metadata?.pending_redirect;
     if (pendingRedirect) {
       // Clear the pending redirect
       await supabase.auth.updateUser({
         data: { pending_redirect: null },
       });
-      return NextResponse.redirect(`${origin}${pendingRedirect}`);
+      return NextResponse.redirect(
+        `${origin}${safeAuthRedirect(pendingRedirect)}`,
+      );
     }
 
     return NextResponse.redirect(`${origin}/dashboard`);

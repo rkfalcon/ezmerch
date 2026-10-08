@@ -3,41 +3,44 @@ interface Store {
   stripe_account_id: string | null;
 }
 
-interface RevenueSplit {
-  applicationFeeCents: number;
-  destinationAccountId: string | null;
-  platformKeepsAll: boolean;
-}
-
-/**
- * Calculate the revenue split for a given order.
- *
- * Split applies to product subtotal only — shipping and tax are excluded.
- * Both claimed === true AND a valid stripe_account_id are required for payouts.
- *
- * - Unclaimed or no Stripe: platform keeps 100%
- * - Claimed + Stripe: 40% platform fee, 60% to store owner
+/** Split merchandise margin after Printful production costs, in integer cents.
+ * Shipping and tax are retained separately, never paid to the store owner.
+ * Stripe processing fees are paid from the platform's retained funds.
  */
 export function calculateRevenueSplit(
   store: Store,
-  subtotalCents: number
-): RevenueSplit {
-  const hasStripeSetup = store.claimed && !!store.stripe_account_id;
-
-  if (!hasStripeSetup) {
-    return {
-      applicationFeeCents: 0,
-      destinationAccountId: null,
-      platformKeepsAll: true,
-    };
+  subtotalCents: number,
+  productionCostCents: number,
+  shippingCents: number,
+  taxCents: number,
+  reserveOwnerShare = false,
+) {
+  for (const amount of [
+    subtotalCents,
+    productionCostCents,
+    shippingCents,
+    taxCents,
+  ]) {
+    if (!Number.isSafeInteger(amount) || amount < 0)
+      throw new Error("Invalid order amount");
   }
-
-  // 40% platform fee on subtotal
-  const applicationFeeCents = Math.round(subtotalCents * 0.4);
-
+  if (productionCostCents > subtotalCents)
+    throw new Error("Product prices do not cover production costs");
+  const marginCents = subtotalCents - productionCostCents;
+  const hasStripeSetup = store.claimed && !!store.stripe_account_id;
+  const ownerEarningsCents =
+    hasStripeSetup || reserveOwnerShare ? Math.round(marginCents * 0.7) : 0;
+  const platformProfitCents = marginCents - ownerEarningsCents;
+  const platformRetainedSubtotalCents = subtotalCents - ownerEarningsCents;
+  const totalCents = subtotalCents + shippingCents + taxCents;
+  if (!Number.isSafeInteger(totalCents)) throw new Error("Invalid order total");
   return {
-    applicationFeeCents,
-    destinationAccountId: store.stripe_account_id,
-    platformKeepsAll: false,
+    ownerEarningsCents,
+    platformProfitCents,
+    platformRetainedSubtotalCents,
+    // A destination charge transfers the entire charge less this application fee.
+    applicationFeeCents: totalCents - ownerEarningsCents,
+    destinationAccountId: hasStripeSetup ? store.stripe_account_id : null,
+    platformKeepsAll: !hasStripeSetup,
   };
 }

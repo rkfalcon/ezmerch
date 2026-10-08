@@ -1,4 +1,8 @@
 "use client";
+import { galleryStyles } from "@/lib/lineup/gallery";
+import { insideLabelPlacement } from "@/lib/lineup/inside-label";
+import { DisabledDate } from "./disabled-date";
+import { productDescription } from "@/lib/lineup/product-description";
 
 import { SupplierStockStatus } from "./supplier-stock-status";
 import {
@@ -12,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { templateTechnique, techniqueLabel } from "@/lib/lineup/catalog-techniques";
 import { CatalogPicker } from "@/components/dashboard/catalog-picker";
 import { categorizeProduct } from "@/lib/printful-categories";
 import { leftChestPlacement, printfulPlacement } from "@/lib/lineup/placement";
@@ -82,8 +87,9 @@ export function LineupTemplates({
       <p className="text-sm text-muted-foreground">
         New stores start live. New additions to stores with products stay drafts
         and notify the owner and admins. Product and color availability apply to
-        all stores immediately. Design and pricing edits apply to future
-        generation.
+        all stores immediately. Template prices are the minimum store prices;
+        raising them updates lower store prices automatically. Higher store prices
+        are preserved. Design edits apply to future generation.
       </p>
       {message && (
         <p
@@ -97,6 +103,7 @@ export function LineupTemplates({
         <TemplateEditor
           key={editing?.id ?? "new"}
           template={editing}
+          templates={templates}
           onClose={() => setEditing(undefined)}
           onSaved={() => {
             setEditing(undefined);
@@ -124,6 +131,8 @@ export function LineupTemplates({
               />
             </CardHeader>
             <CardContent className="space-y-3">
+              {!t.active && <DisabledDate date={t.disabled_at} />}
+              {t.description && <details className="text-sm"><summary className="cursor-pointer">Product description</summary><p className="mt-2 whitespace-pre-wrap">{t.description}</p></details>}
               <SupplierStockStatus stock={t.supplier_stock} error={t.stock_check_error} />
               {previews[t.id]?.catalog && <p className="text-xs text-muted-foreground">Catalog preview · branded mockup appears after generation finishes.</p>}
               <p className="font-semibold">
@@ -134,6 +143,9 @@ export function LineupTemplates({
                 All available sizes · {t.placement.replaceAll("_", " ")} ·{" "}
                 {Math.round(Number(t.scale) * 100)}% logo scale
               </p>
+              {previews[t.id]?.colors && <p className="text-sm font-medium">
+                {previews[t.id].colors.filter(c => !t.enabled_colors || t.enabled_colors.includes(c)).length}/{previews[t.id].colors.length} enabled · maximum 25 colors
+              </p>}
               {previews[t.id]?.colors && (
                 <ColorAvailabilityPills
                   colors={previews[t.id].colors}
@@ -174,10 +186,12 @@ export function LineupTemplates({
 
 function TemplateEditor({
   template,
+  templates,
   onClose,
   onSaved,
 }: {
   template: ProductTemplate | null;
+  templates: ProductTemplate[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -186,6 +200,7 @@ function TemplateEditor({
   const [productId, setProductId] = useState(
     template?.catalog_product_id?.toString() ?? "",
   );
+  const [description, setDescription] = useState<string | null>(template?.description ?? null);
   const [title, setTitle] = useState(template?.title ?? "");
   const [category, setCategory] = useState(template?.category ?? "T-Shirts");
   const [price, setPrice] = useState(
@@ -202,6 +217,7 @@ function TemplateEditor({
       .map(([size, cents]) => `${size}=${(cents / 100).toFixed(2)}`)
       .join("\n"),
   );
+  const label = insideLabelPlacement(catalog.find(p => String(p.id) === productId) ?? {});
   const [files, setFiles] = useState<Printfiles | null>(null);
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
   const [busy, setBusy] = useState(false);
@@ -234,6 +250,7 @@ function TemplateEditor({
       .then((r) => r.json())
       .then((d) => {
         if (d.error) throw new Error(d.error);
+        setDescription(current => current === null ? productDescription(d.product?.description) : current);
         setFiles(d.files);
         setVariants(d.variants);
         setPlacement((current) =>
@@ -253,11 +270,13 @@ function TemplateEditor({
       });
     return () => controller.abort();
   }, [productId, technique]);
-  function chooseProduct(id: string) {
-    if (id === productId) return;
+  function chooseProduct(id: string, selected?: string) {
+    if (id === productId) { if (selected) setTechnique(selected); return; }
+    setDescription(null);
     setProductId(id);
     const p = catalog.find((p) => p.id === Number(id));
     if (p) {
+      setTechnique(selected ?? templateTechnique(p));
       setTitle(p.title);
       setCategory(categorizeProduct(p.title));
     }
@@ -290,9 +309,10 @@ function TemplateEditor({
           technique,
           placement,
           scale: scale / 100,
+          allow_front_fallback: data.get("allow_front_fallback") === "on",
           option_groups: group ? [group] : [],
           active: data.get("active") === "on",
-          description: template?.description ?? "",
+          description: description ?? "",
         }),
       });
       const result = await response.json();
@@ -315,7 +335,7 @@ function TemplateEditor({
       <CardContent>
         <form onSubmit={submit} className="space-y-4">
           {catalogLoading ? <p role="status">Loading Printful products…</p> : (
-            <CatalogPicker products={catalog} selectedId={productId} onSelect={chooseProduct} />
+            <CatalogPicker products={catalog} templates={templates} selectedId={productId} onSelect={chooseProduct} />
           )}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm space-y-1">
@@ -335,9 +355,14 @@ function TemplateEditor({
               />
             </label>
           </div>
+          <label className="block text-sm space-y-1">
+            Product description
+            <textarea className="block w-full rounded-md border bg-background p-2" rows={9} maxLength={5000} value={description ?? ""} disabled={loading} onChange={e => setDescription(e.target.value)} />
+            <span className="block text-xs text-muted-foreground">Imported from the catalog. Edits apply to this product in every store, including existing products. The return policy is shown separately.</span>
+          </label>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm space-y-1">
-              Retail price ($)
+              Minimum retail price ($)
               <Input
                 required
                 type="number"
@@ -360,7 +385,7 @@ function TemplateEditor({
                     setPrice(
                       (
                         retailPrice(
-                          Math.min(...costs),
+                          Math.min(...costs) + (label ? Math.round(Number(label.additional_price) * 100) : 0),
                           category === "Stickers & Patches",
                         ) / 100
                       ).toFixed(2),
@@ -370,7 +395,7 @@ function TemplateEditor({
                 Calculate default price
               </Button>
               <p className="text-xs text-muted-foreground mt-1">
-                Uses the lowest catalog cost. You can override it.
+                Uses the lowest catalog cost, including the VeryMerch inside label when supported. You can override it.
               </p>
             </div>
           </div>
@@ -384,9 +409,9 @@ function TemplateEditor({
               >
                 <option value="dtg">Print (default technique)</option>
                 <option value="embroidery">Embroidery</option>
-                <option value="sublimation">
-                  Sublimation (default technique)
-                </option>
+                <option value="sublimation">Sublimation (default technique)</option>
+                {(catalog.find(p => String(p.id) === productId)?.techniques ?? []).filter(t => !['dtg','embroidery','sublimation'].includes(t.key.toLowerCase())).map(t =>
+                  <option key={t.key} value={t.key.toLowerCase()}>{techniqueLabel(t.key, t.display_name)}</option>)}
               </select>
             </label>
             <label className="text-sm space-y-1">
@@ -400,7 +425,7 @@ function TemplateEditor({
                 {technique === "dtg" && files?.available_placements.front && (
                   <option value={leftChestPlacement}>Left chest (front print preset)</option>
                 )}
-                {Object.entries(files?.available_placements ?? {}).map(
+                {Object.entries(files?.available_placements ?? {}).filter(([key]) => !key.startsWith('label_inside') && !(label && key.startsWith('label_outside'))).map(
                   ([key, name]) => (
                     <option key={key} value={key}>
                       {name}
@@ -421,8 +446,14 @@ function TemplateEditor({
               />
             </label>
           </div>
+          {technique === "dtg" && ["front", leftChestPlacement].includes(placement) && (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" name="allow_front_fallback" defaultChecked={template?.allow_front_fallback ?? false} />
+              Allow automatic switching between left chest and centered front if the preferred placement cannot pass quality checks.
+            </label>
+          )}
           <label className="block text-sm space-y-1">
-            Mockup style
+            Primary mockup style
             <select
               className={selectClass}
               value={group}
@@ -434,6 +465,13 @@ function TemplateEditor({
               ))}
             </select>
           </label>
+          {files && !loading && (
+            <p className="text-xs text-muted-foreground">
+              {galleryStyles(category, files.option_groups ?? [], group ? [group] : []).length
+                ? `Additional product views: ${galleryStyles(category, files.option_groups ?? [], group ? [group] : []).join(", ")}. These generate automatically after the main previews.`
+                : "Printful does not offer additional basic mockup styles for this selection. Only the primary view will be available."}
+            </p>
+          )}
           <label className="block text-sm space-y-1">
             Size-specific retail prices (optional)
             <textarea

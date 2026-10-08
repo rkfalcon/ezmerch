@@ -1,3 +1,4 @@
+import { siteOrigin } from "@/lib/site";
 import { stripe } from "@/lib/stripe";
 import { lineupStoreAccess } from "@/lib/lineup/access";
 
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
           },
           business_profile: {
             name: store.name,
-            url: store.website_url || `https://www.ezmerch.store/${store.slug}`,
+            url: store.website_url || `${siteOrigin}/${store.slug}`,
           },
           metadata: { store_id: store.id },
         },
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       if (saveError) throw saveError;
     }
     const origin =
-      process.env.NEXT_PUBLIC_SITE_URL || "https://www.ezmerch.store";
+      siteOrigin;
     const path = store.onboarding_started_at
       ? "/dashboard/onboarding"
       : "/dashboard/store/connect";

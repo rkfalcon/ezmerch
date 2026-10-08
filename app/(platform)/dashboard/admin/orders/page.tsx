@@ -48,7 +48,7 @@ export default async function AdminOrdersPage() {
               <TableHead>Customer</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Total</TableHead>
-              <TableHead className="text-right">Platform Fee</TableHead>
+              <TableHead className="text-right">Platform Retained</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>

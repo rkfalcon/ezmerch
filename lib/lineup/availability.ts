@@ -1,3 +1,4 @@
+import { stockTechnique } from "./catalog-techniques";
 import { PrintfulClient, PrintfulError } from "./printful";
 
 export interface StockSnapshot {
@@ -41,20 +42,17 @@ export async function readStock(
     };
   const techniques = (
     catalog.product as typeof catalog.product & {
-      techniques?: { key: string; is_default: boolean }[];
+      techniques?: { key: string; display_name: string; is_default: boolean }[];
     }
   ).techniques;
-  const selected =
-    technique === "embroidery"
-      ? "embroidery"
-      : techniques?.find((t) => t.is_default)?.key.toLowerCase();
+  const selected = stockTechnique(technique, { techniques });
   if (!selected)
     throw new Error("Printful did not provide the product printing technique");
   const rows: StockRow[] = [];
   // Fetch every page; an incomplete response must never disable the remaining variants.
   for (let offset = 0; offset < 5000; offset += 100) {
     const page = await client.request<StockRow[]>(
-      `/v2/catalog-products/${productId}/availability?limit=100&offset=${offset}`,
+      `/v2/catalog-products/${productId}/availability?selling_region_name=usa&limit=100&offset=${offset}`,
     );
     if (!Array.isArray(page))
       throw new Error("Invalid Printful availability response");

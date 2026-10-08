@@ -1,3 +1,4 @@
+import { techniqueCatalog } from "@/lib/lineup/technique-catalog";
 import { lineupAdmin } from "@/lib/lineup/access";
 import { PrintfulClient } from "@/lib/lineup/printful";
 
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
     const client = new PrintfulClient();
     if (id) {
       const [catalog, files] = await Promise.all([
-        client.product(id),
+        techniqueCatalog(id, url.searchParams.get("technique") ?? "dtg", client),
         client.printfiles(id, url.searchParams.get("technique") ?? "dtg"),
       ]);
       return Response.json({ ...catalog, files });

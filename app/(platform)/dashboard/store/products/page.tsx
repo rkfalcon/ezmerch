@@ -1,7 +1,9 @@
+import { productTitle } from "@/lib/product-title";
 import { LineupProductPrice } from "@/components/dashboard/lineup-product-price";
 import { productDisplayImage } from "@/lib/product-colors";
 import {
   StoreProductColorPills,
+  StoreProductColorCount,
   storeProductEnabled,
   enabledProductClass,
   disabledProductClass,
@@ -29,12 +31,12 @@ export default async function StoreOwnerProductsPage() {
   const { data: stores, error: storesError } = await supabase
     .from("stores")
     .select("id")
-    .eq("owner_id", user.id);
+    .eq("owner_id", user.id).eq("id", user.storeId);
   if (storesError) throw storesError;
 
   const { data: products } = await supabase
     .from("products")
-    .select("*")
+    .select("*, product_templates(retail_price_cents,size_prices)")
     .in(
       "store_id",
       (stores ?? []).map((store) => store.id),
@@ -60,7 +62,7 @@ export default async function StoreOwnerProductsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Title</TableHead>
-              <TableHead>Variants</TableHead>
+              <TableHead>Available colors</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Created</TableHead>
             </TableRow>
@@ -68,9 +70,6 @@ export default async function StoreOwnerProductsPage() {
           <TableBody>
             {products && products.length > 0 ? (
               products.map((product) => {
-                const variantCount = Array.isArray(product.variants)
-                  ? product.variants.length
-                  : 0;
                 return (
                   <TableRow
                     key={product.id}
@@ -82,16 +81,17 @@ export default async function StoreOwnerProductsPage() {
                   >
                     <TableCell className="font-medium">
                       <ProductColorPreview
+                        ownerView
                         product={{
                           id: product.id,
-                          title: product.title,
+                          title: productTitle(product.title),
                           thumbnail_url: productDisplayImage(product),
                         }}
                       />
-                      <StoreProductColorPills product={product} />
-                      <LineupProductPrice productId={product.id} variants={product.variants} />
+                      <StoreProductColorPills product={product} ownerView />
+                      <LineupProductPrice productId={product.id} variants={product.variants} template={product.product_templates} />
                     </TableCell>
-                    <TableCell>{variantCount} variants</TableCell>
+                    <TableCell><StoreProductColorCount product={product} /></TableCell>
                     <TableCell>
                       <ProductPublishToggle
                         productId={product.id}

@@ -72,6 +72,7 @@ export async function renderArtwork(
     },
   })
     .composite([{ input: resized, left: fit.left, top: fit.top }])
+    .withIccProfile("srgb")
     .png()
     .toBuffer();
 }

@@ -1,4 +1,5 @@
 "use client";
+import { productTitle } from "@/lib/product-title";
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -41,6 +42,7 @@ interface ProductFormProps {
 }
 
 export function ProductForm({ storeId, returnPath }: ProductFormProps) {
+  const displayTitle = (title: string) => returnPath.startsWith("/dashboard/admin") ? title : productTitle(title);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -106,7 +108,7 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
         setCatalogProducts(withCategories);
       }
     } catch {
-      setError("Failed to load Printful catalog");
+      setError("Failed to load product catalog");
     }
     setLoadingCatalog(false);
   }
@@ -196,7 +198,7 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
 
     if (invalidVariants.length > 0) {
       setError(
-        `Retail price must exceed the Printful base cost for all variants. Check: ${invalidVariants.map((v) => v.name).join(", ")}`
+        `Retail price must exceed the base cost for all variants. Check: ${invalidVariants.map((v) => v.name).join(", ")}`
       );
       setPending(false);
       return;
@@ -234,16 +236,16 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
         <CardHeader>
           <CardTitle>Base Product</CardTitle>
           <CardDescription>
-            Select a product from the Printful catalog
+            Select a product from the product catalog
           </CardDescription>
         </CardHeader>
         <CardContent>
           {selectedProduct ? (
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">{selectedProduct.title}</p>
+                <p className="font-medium">{displayTitle(selectedProduct.title)}</p>
                 <p className="text-sm text-muted-foreground">
-                  Printful ID: {selectedProduct.id}
+                  Catalog ID: {selectedProduct.id}
                 </p>
               </div>
               <Button
@@ -267,7 +269,7 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
             >
               {loadingCatalog
                 ? "Loading catalog..."
-                : "Browse Printful Catalog"}
+                : "Browse Product Catalog"}
             </Button>
           ) : selectedCategory ? (
             /* Show products in selected category */
@@ -302,7 +304,7 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
                       {p.image ? (
                         <img
                           src={p.image}
-                          alt={p.title}
+                          alt={displayTitle(p.title)}
                           className="h-12 w-12 rounded object-cover flex-shrink-0"
                         />
                       ) : (
@@ -311,7 +313,7 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{p.title}</p>
+                        <p className="text-sm font-medium truncate">{displayTitle(p.title)}</p>
                         {price ? (
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {price.min === price.max
@@ -528,7 +530,7 @@ export function ProductForm({ storeId, returnPath }: ProductFormProps) {
           <CardHeader>
             <CardTitle>Variants & Pricing</CardTitle>
             <CardDescription>
-              Set retail prices for each variant. Price must exceed the Printful
+              Set retail prices for each variant. Price must exceed the
               base cost.
             </CardDescription>
           </CardHeader>

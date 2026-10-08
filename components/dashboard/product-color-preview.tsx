@@ -1,4 +1,5 @@
 "use client";
+import { MAX_PRODUCT_COLORS } from "@/lib/lineup/color-limit";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -10,7 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { colorName, type ColorVariant } from "@/lib/product-colors";
+import { dashboardColors, colorName, type ColorVariant } from "@/lib/product-colors";
 
 interface ProductSummary {
   id: string;
@@ -30,9 +31,11 @@ interface Details extends ProductSummary {
 export function ProductColorPreview({
   product,
   scope = "store",
+  ownerView = false,
 }: {
   product: ProductSummary;
   scope?: "store" | "global";
+  ownerView?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -66,9 +69,10 @@ export function ProductColorPreview({
                 ? "Sample logo preview. These color settings apply to every store."
                 : "Preview each color, then choose which colors customers can buy in this store."}{" "}
               All available sizes for enabled colors stay available.
+              {scope === "store" && " Saving colors does not publish a draft. Use Publish product in the product list to enable sales."}
             </DialogDescription>
           </DialogHeader>
-          {open && <ColorEditor product={product} scope={scope} />}
+          {open && <ColorEditor product={product} scope={scope} ownerView={ownerView} />}
         </DialogContent>
       </Dialog>
     </>
@@ -78,9 +82,11 @@ export function ProductColorPreview({
 function ColorEditor({
   product,
   scope,
+  ownerView,
 }: {
   product: ProductSummary;
   scope: "store" | "global";
+  ownerView: boolean;
 }) {
   const router = useRouter();
   const endpoint =
@@ -109,7 +115,8 @@ function ColorEditor({
           ...new Set((data.variants as ColorVariant[]).map(colorName)),
         ];
         setDetails(data);
-        setSelected(data.default_color ?? colors[0] ?? "");
+        const visible = dashboardColors(colors, ownerView, data.global_active !== false, data.global_enabled_colors);
+        setSelected(visible.includes(data.default_color) ? data.default_color : visible[0] ?? "");
         setDefaultColor(data.default_color ?? null);
         setSavedDefault(data.default_color ?? null);
         setEnabled(data.enabled_colors ?? colors);
@@ -119,8 +126,8 @@ function ColorEditor({
         if (!controller.signal.aborted) setError(e.message);
       });
     return () => controller.abort();
-  }, [endpoint]);
-  const colors = details ? [...new Set(details.variants.map(colorName))] : [];
+  }, [endpoint, ownerView]);
+  const colors = details ? dashboardColors([...new Set(details.variants.map(colorName))], ownerView, details.global_active !== false, details.global_enabled_colors) : [];
   const globallyAllowed = (color: string) =>
     scope === "global" ||
     (details?.global_active !== false &&
@@ -223,7 +230,7 @@ function ColorEditor({
         {scope === "store" && (
           <div className="my-3 space-y-2 rounded-md border p-3">
             <p className="text-sm font-medium">
-              Default display color: {defaultColor ?? "Automatic"}
+              Default display color: {ownerView && defaultColor && !globallyAllowed(defaultColor) ? "Automatic (saved color unavailable)" : defaultColor ?? "Automatic"}
             </p>
             {defaultColor &&
               (!enabled.includes(defaultColor) ||
@@ -283,9 +290,10 @@ function ColorEditor({
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Available colors</h3>
           <span className="text-sm text-muted-foreground">
-            {enabled.filter(globallyAllowed).length} of {colors.length} enabled
+            {colors.filter(c => enabled.includes(c) && globallyAllowed(c)).length} of {colors.length} enabled
           </span>
         </div>
+        {scope === "global" && <p className="text-sm text-muted-foreground">Maximum 25 colors per product. All sizes remain available. Uncheck a color to select another.</p>}
         <label className="block text-sm">
           Find a color
           <input
@@ -304,11 +312,11 @@ function ColorEditor({
             disabled={busy}
             onClick={() =>
               setEnabled([
-                ...new Set([...enabled, ...colors.filter(globallyAllowed)]),
+                ...Array.from(new Set([...enabled, ...colors.filter(globallyAllowed)])).slice(0, scope === "global" ? MAX_PRODUCT_COLORS : Infinity),
               ])
             }
           >
-            Enable all
+            {scope === "global" && colors.length > MAX_PRODUCT_COLORS ? "Enable up to 25" : "Enable all"}
           </Button>
           <Button
             type="button"
@@ -334,7 +342,7 @@ function ColorEditor({
                   type="checkbox"
                   aria-label={`Enable ${color}`}
                   checked={enabled.includes(color)}
-                  disabled={busy || !globallyAllowed(color)}
+                  disabled={busy || !globallyAllowed(color) || (scope === "global" && enabled.length >= MAX_PRODUCT_COLORS && !enabled.includes(color))}
                   onChange={(e) => {
                     setNotice("");
                     setEnabled((current) =>
@@ -364,6 +372,7 @@ function ColorEditor({
               </div>
             ))}
         </div>
+        {!colors.length && <p className="text-sm text-muted-foreground">No colors are currently enabled by the admin for this product.</p>}
         {!enabled.length && (
           <p className="text-sm text-muted-foreground">
             Choose at least one color, or hide the product using its visibility
@@ -382,7 +391,7 @@ function ColorEditor({
         )}
         <Button
           type="button"
-          disabled={busy || !dirty || !enabled.length}
+          disabled={busy || !dirty || !enabled.length || (ownerView && !colors.some(c => enabled.includes(c))) || (scope === "global" && enabled.length > MAX_PRODUCT_COLORS)}
           onClick={save}
           className="w-full"
         >

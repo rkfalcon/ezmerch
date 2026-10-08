@@ -1,8 +1,11 @@
+import { domainRedirect } from "@/lib/domain-redirect";
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
+  const destination = domainRedirect(request.url, request.method);
+  if (destination) return NextResponse.redirect(destination, 308);
   // First, refresh the session
   const response = await updateSession(request);
 
