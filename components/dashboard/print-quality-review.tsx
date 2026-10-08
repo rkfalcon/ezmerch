@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import type {PrintQualityReport} from "@/lib/lineup/print-quality";
@@ -66,7 +67,7 @@ export function PrintQualityReview({quality,storeId,jobId,template,image,imageKi
   <p className="font-medium">{approved?"Print quality checked":"VeryMerch design review"}</p>
   <p>{quality.message}</p>
   <QualityCheckBreakdown quality={quality} embroidery={embroidery}/>
-  {quality.policyRevision!=null&&<p className="text-xs text-muted-foreground">Quality settings revision {quality.policyRevision}. <a href="/dashboard/admin/quality" className="underline">View quality settings</a></p>}
+  {quality.policyRevision!=null&&<p className="text-xs text-muted-foreground">Quality settings revision {quality.policyRevision}. <Link href="/dashboard/admin/quality" className="underline">View quality settings</Link></p>}
   {!approved&&<p className="text-muted-foreground">This product stays unavailable while VeryMerch resolves the artwork. No action is required from the store owner.</p>}
   <ul className="space-y-1 text-xs">{quality.areas.map(a=><li key={a.id}>
    Logo: {a.widthInches.toFixed(2)}″ × {a.heightInches.toFixed(2)}″ {!embroidery&&<> · Original: {a.sourceDpi} PPI · Prepared: {a.outputDpi} PPI · Required: {a.requiredDpi} PPI</>}

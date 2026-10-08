@@ -12,11 +12,11 @@ const stripe=new Stripe(key,{apiVersion:'2026-03-25.dahlia'});
 process.env.STRIPE_WEBHOOK_SECRET='whsec_local_integration_fixture';
 const product={id:'test-product',store_id:'test-store',template_id:'test-template',variants:[{variant_id:123,sync_variant_id:456,color:'Black',size:'M',retail_price:'30.00'}]};
 let category='Home & Living';
-let storedOrder: any=null;
+let storedOrder: Record<string, unknown> | null = null;
 let creations=0;
 let quoteFails=false;
 const db={from(table:string){
- const query:any={select(){return query},eq(){return query},in(){return query},update(value:any){if(storedOrder)Object.assign(storedOrder,value);return query},single:async()=>({data:table==='stores'?{id:'test-store',name:'Test Store',slug:'test-store',claimed:false,stripe_account_id:null,selling_enabled:true}:storedOrder,error:null}),then(resolve:any){resolve({data:table==='products'?[product]:table==='product_templates'?[{id:'test-template',category,technique:'dtg'}]:storedOrder,error:null})}};
+ const query={select(){return query},eq(){return query},in(){return query},update(value: Record<string, unknown>){if(storedOrder)Object.assign(storedOrder,value);return query},single:async()=>({data:table==='stores'?{id:'test-store',name:'Test Store',slug:'test-store',claimed:false,stripe_account_id:null,selling_enabled:true}:storedOrder,error:null}),then(resolve: (result: {data: unknown; error: null}) => void){resolve({data:table==='products'?[product]:table==='product_templates'?[{id:'test-template',category,technique:'dtg'}]:storedOrder,error:null})}};
  return query;
 }};
 mock.module('../../lib/supabase/server.ts',{namedExports:{createClient:async()=>db}});
@@ -24,7 +24,7 @@ mock.module('../../lib/supabase/admin.ts',{namedExports:{createAdminClient:()=>d
 mock.module(require.resolve('@supabase/supabase-js'),{namedExports:{createClient:()=>db}});
 mock.module('../../lib/stripe.ts',{namedExports:{stripe}});
 mock.module('../../lib/earnings/service.ts',{namedExports:{recordOwnerEarning:async()=>{},recordPayoutReadiness:async()=>{},wakeOwnerEarning:async()=>{}}});
-mock.module('../../lib/orders.ts',{namedExports:{createOrderFromPayment:async(data:any)=>{storedOrder={id:'fixture-order',...data};creations++}}});
+mock.module('../../lib/orders.ts',{namedExports:{createOrderFromPayment:async(data: Parameters<typeof import('../../lib/orders').createOrderFromPayment>[0])=>{storedOrder={id:'fixture-order',...data};creations++}}});
 mock.module('../../lib/lineup/printful.ts',{namedExports:{PrintfulClient:class{
  async request(path:string){
  if(path.startsWith('/products/variant/'))return {variant:{in_stock:true},product:{is_discontinued:false,techniques:[{key:'dtg',is_default:true}]}};
@@ -50,6 +50,7 @@ test('checkout → Stripe payment → signed webhook → order → refund',async
  const paid=await stripe.paymentIntents.confirm(id,{payment_method:'pm_card_visa',return_url:'https://example.com'});
  assert.equal(paid.status,'succeeded');
  assert.equal((await deliver('payment_intent.succeeded',paid)).status,200);
+ assert.ok(storedOrder);
  assert.equal(storedOrder.taxCents,232);assert.equal(storedOrder.totalCents,3732);
  await deliver('payment_intent.succeeded',paid);assert.equal(creations,1);
  await deliver('charge.refunded',{payment_intent:paid.id,refunded:false});

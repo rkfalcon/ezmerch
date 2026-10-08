@@ -59,7 +59,7 @@ test("admins are notified once for signup, store create, and store claim", async
       insert into auth.users(id,email,raw_user_meta_data)
       values ('${signup}','new.user@example.com','{"display_name":"Riley"}');
     `);
-    let rows = (
+    const rows = (
       await db.query<{
         recipient_id: string;
         title: string;

@@ -10,4 +10,3 @@ begin
         exists(select 1 from jsonb_array_elements(coalesce(q.state->'batches','[]')) b where jsonb_array_length(coalesce(b->'images','[]'))>0 or jsonb_array_length(coalesce(b->'downloadedImages','[]'))>0) desc,
         q.available_at,q.created_at limit 1 for update of q skip locked) returning j.*;
 end; $$;
-

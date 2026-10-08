@@ -29,4 +29,3 @@ export async function actualSizeReviewPdf(artwork: Buffer, dpi: number) {
   }
   return pdf.save();
 }
-
