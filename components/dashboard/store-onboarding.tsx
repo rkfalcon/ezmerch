@@ -1,8 +1,11 @@
 "use client";
+import { productTitle } from "@/lib/product-title";
+
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import type { PrintQualityReport } from "@/lib/lineup/print-quality";
 import { LineupLogo } from "./lineup-logo";
 import { LogoFileInput } from "./logo-file-input";
 import { Input } from "@/components/ui/input";
@@ -20,6 +23,7 @@ interface Setup {
     image: string | null;
     ready: boolean;
     jobId?: string;
+    quality?: PrintQualityReport;
     status: string;
     completed: number;
     total: number;
@@ -35,6 +39,7 @@ export function StoreOnboarding() {
     started: boolean;
     submitted?: boolean;
   } | null>(null);
+  const [acceptedPolicy, setAcceptedPolicy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [logoReady, setLogoReady] = useState(false);
   const load = useCallback(async () => {
@@ -73,7 +78,7 @@ export function StoreOnboarding() {
     }
   }, []);
   useEffect(() => {
-    if (setup?.store?.id && !setup.store.selling_enabled) void checkStripe();
+    if (setup?.store?.id) void checkStripe();
   }, [setup?.store?.id, setup?.store?.selling_enabled, checkStripe]);
   async function create(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -115,7 +120,11 @@ export function StoreOnboarding() {
     setBusy(true);
     setError("");
     try {
-      const r = await fetch("/api/onboarding/launch", { method: "POST" });
+      const r = await fetch("/api/onboarding/launch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acceptEarningsPolicy: acceptedPolicy }),
+      });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error);
       await load();
@@ -143,7 +152,7 @@ export function StoreOnboarding() {
         </h1>
         <p className="mt-2 text-muted-foreground">
           Add your logo. We’ll put it on your products. Connect payouts when
-          you’re ready to sell.
+          you’re ready to get paid.
         </p>
       </div>
       <ol className="grid grid-cols-3 gap-2 text-sm" aria-label="Setup steps">
@@ -234,7 +243,7 @@ export function StoreOnboarding() {
               {previews} of {setup!.products.length} product previews ready.{" "}
               {ready} products available.{" "}
               {ready < setup!.products.length &&
-                "We create one preview color per product first, then prepare the remaining colors. You can leave this page—we’ll keep working."}
+                "We create one preview color per product first, then prepare the remaining colors. You can leave this page—we’ll keep working and notify you on your dashboard and by email when the full lineup is ready."}
             </p>
             {!setup!.products.length && (
               <p>The product lineup is being prepared. Your logo is saved.</p>
@@ -257,11 +266,11 @@ export function StoreOnboarding() {
             </div>
             <p className="text-sm text-muted-foreground">
               {store.selling_enabled
-                ? `ezmerch.store/${store.slug}`
-                : "Checkout stays off until you finish payout setup and choose Start selling."}
+                ? `verymerch.com/${store.slug}`
+                : "Choose Start selling to open checkout. You can finish payout setup afterward."}
             </p>
           </section>
-          {!store.selling_enabled && (
+          {(!store.selling_enabled || !stripe?.ready) && (
             <section className="rounded-xl border p-5 space-y-3">
               <h2 className="text-xl font-semibold">Get ready to be paid</h2>
               <p>
@@ -294,12 +303,39 @@ export function StoreOnboarding() {
                       : "Finish the Stripe form, then return here to check your status."}
                 </p>
               )}
-              <Button
-                disabled={busy || !stripe?.ready || !ready}
-                onClick={launch}
+              <p className="text-sm">
+                You earn 70% of merchandise margin after product and printing
+                costs. Complete Stripe verification within 30 days of each sale
+                to collect that sale’s share. After its deadline, VeryMerch
+                retains 100% of that sale’s margin. Once verified, future sales
+                qualify automatically. Shipping and tax are excluded.
+              </p>
+              {!store.selling_enabled && (
+                <>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={acceptedPolicy}
+                      onChange={(e) => setAcceptedPolicy(e.target.checked)}
+                      className="mt-1"
+                    />
+                    I agree to the 70/30 split and the 30-day Stripe setup
+                    deadline for each sale.
+                  </label>
+                  <Button
+                    disabled={busy || !ready || !acceptedPolicy}
+                    onClick={launch}
+                  >
+                    Start selling
+                  </Button>
+                </>
+              )}
+              <Link
+                className="block underline"
+                href="/dashboard/store/earnings"
               >
-                Start selling
-              </Button>
+                View earnings and deadlines
+              </Link>
               <p className="text-xs text-muted-foreground">
                 Available products will be offered for sale. Any still
                 generating will appear when ready. You can hide products or
@@ -318,27 +354,35 @@ export function StoreOnboarding() {
                   {p.image ? (
                     <img
                       src={p.image}
-                      alt={`${p.title} with your logo`}
+                      alt={`${productTitle(p.title)} with your logo`}
                       className="aspect-square w-full bg-white object-contain"
                     />
                   ) : (
                     <div className="flex aspect-square items-center justify-center bg-muted p-4 text-center text-sm">
-                      {p.status === "failed"
-                        ? "This product needs another try"
-                        : "Preparing your logo mockup…"}
+                      {p.status === "unavailable" ? "Temporarily unavailable" : p.quality &&
+                      !p.quality.reviewedAt &&
+                      p.quality.status !== "ready"
+                        ? "VeryMerch is preparing this artwork"
+                        : p.status === "failed"
+                          ? "VeryMerch is preparing this product"
+                          : "Preparing your logo mockup…"}
                     </div>
                   )}
-                  <h3 className="mt-3 text-sm font-medium">{p.title}</h3>
+                  <h3 className="mt-3 text-sm font-medium">{productTitle(p.title)}</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {p.ready
+                    {p.status === "unavailable" ? "Hidden from your storefront. We’ll check availability automatically." : p.ready
                       ? p.completed < p.total
                         ? "Ready · more colors are being prepared"
                         : "Ready"
-                      : p.status === "failed"
-                        ? "We couldn’t finish this product. Contact the site admin for a retry."
-                        : p.total
-                          ? `${p.completed} of ${p.total} image groups ready`
-                          : "Queued for generation"}
+                      : p.quality &&
+                          p.quality.status !== "ready" &&
+                          !p.quality.reviewedAt
+                        ? "VeryMerch is checking this design. No action is needed from you."
+                        : p.status === "failed"
+                          ? "The VeryMerch team will handle this product. No action is needed from you."
+                          : p.total
+                            ? `${p.completed} of ${p.total} image groups ready`
+                            : "Queued for generation"}
                   </p>
                 </article>
               ))}

@@ -12,7 +12,7 @@ const loadStore = cache(async (storeSlug: string) => {
   const { data: store } = await supabase
     .from("stores")
     .select(
-      "id, name, slug, brand_colors, logo_url, header_color, header_text_color, selling_enabled",
+      "id, name, slug, brand_colors, logo_url, website_url, header_color, header_text_color, selling_enabled",
     )
     .eq("slug", storeSlug)
     .single();
@@ -45,14 +45,13 @@ export default async function StoreLayout({
         <div className="min-h-screen flex flex-col">
           <StoreHeader store={store} />
           {!store.selling_enabled && (
-            <p className="bg-amber-50 p-3 text-center text-sm text-amber-950">
-              Store preview · Checkout will open once the owner finishes payment
-              setup.
+            <p className="border-b border-amber-200 bg-amber-50 p-3 text-center text-xs text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+              Store preview · Checkout will open once the owner launches this store.
             </p>
           )}
           <main className="flex-1">{children}</main>
           <footer className="border-t py-6 text-center text-sm text-muted-foreground">
-            <p>Powered by EZMerch</p>
+            <p>Powered by VeryMerch</p>
             <p className="mt-1 text-xs">
               Print-on-demand items cannot be returned or exchanged. Refunds
               only for defective or damaged items.

@@ -1,4 +1,6 @@
 "use client";
+import { productTitle } from "@/lib/product-title";
+
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -76,7 +78,7 @@ export default function CheckoutPage() {
         shippingAddress,
         customerEmail,
         shippingCents,
-        taxCents: 0, // Stripe Tax handles this
+        taxCents: 0, // Server determines all final amounts
       }),
     });
 
@@ -230,12 +232,12 @@ function ShippingStep({
         {items.map((item) => (
           <div
             key={`${item.productId}-${item.variantKey}`}
-            className="flex justify-between text-sm py-1"
+            className="flex justify-between gap-3 text-sm py-1"
           >
-            <span>
-              {item.title} x{item.quantity}
+            <span className="min-w-0 break-words">
+              {productTitle(item.title)} x{item.quantity}
             </span>
-            <span>${((item.priceCents * item.quantity) / 100).toFixed(2)}</span>
+            <span className="shrink-0">${((item.priceCents * item.quantity) / 100).toFixed(2)}</span>
           </div>
         ))}
         <div className="border-t mt-2 pt-2 flex justify-between text-sm">
@@ -270,7 +272,7 @@ function ShippingStep({
           type="email"
           placeholder="Email address"
           required
-          className="w-full rounded-md border px-3 py-2 text-sm"
+          className="w-full min-w-0 rounded-md border px-3 py-2 text-base md:text-sm"
         />
       </div>
 
@@ -281,38 +283,38 @@ function ShippingStep({
           name="name"
           placeholder="Full name"
           required
-          className="w-full rounded-md border px-3 py-2 text-sm"
+          className="w-full min-w-0 rounded-md border px-3 py-2 text-base md:text-sm"
         />
         <input
           name="address1"
           placeholder="Address line 1"
           required
-          className="w-full rounded-md border px-3 py-2 text-sm"
+          className="w-full min-w-0 rounded-md border px-3 py-2 text-base md:text-sm"
         />
         <input
           name="address2"
           placeholder="Address line 2 (optional)"
-          className="w-full rounded-md border px-3 py-2 text-sm"
+          className="w-full min-w-0 rounded-md border px-3 py-2 text-base md:text-sm"
         />
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <input
             name="city"
             placeholder="City"
             required
-            className="rounded-md border px-3 py-2 text-sm"
+            className="col-span-2 sm:col-span-1 w-full min-w-0 rounded-md border px-3 py-2 text-base md:text-sm"
           />
           <input
             name="state_code"
             placeholder="State"
             required
             maxLength={2}
-            className="rounded-md border px-3 py-2 text-sm"
+            className="w-full min-w-0 rounded-md border px-3 py-2 text-base md:text-sm"
           />
           <input
             name="zip"
             placeholder="ZIP code"
             required
-            className="rounded-md border px-3 py-2 text-sm"
+            className="w-full min-w-0 rounded-md border px-3 py-2 text-base md:text-sm"
           />
         </div>
       </div>

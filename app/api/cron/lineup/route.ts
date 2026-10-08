@@ -1,3 +1,5 @@
+import { runProductGalleryWorker } from "@/lib/lineup/gallery-worker";
+import { tryScheduleLineupWakeup } from "@/lib/lineup/queue";
 import { timingSafeEqual } from "node:crypto";
 import { runLineupWorker } from "@/lib/lineup/worker";
 import { deliverLineupEmails } from "@/lib/lineup/notifications";
@@ -17,6 +19,8 @@ export async function GET(request: Request) {
   if (process.env.BACKGROUND_JOBS_PAUSED === "true")
     return Response.json({ paused: true });
   const jobs = await runLineupWorker();
+  const queued = await tryScheduleLineupWakeup(new URL(request.url).searchParams.get("wake") === "1");
   const emails = await deliverLineupEmails();
-  return Response.json({ ...jobs, ...emails });
+  const gallery = await runProductGalleryWorker();
+  return Response.json({ ...jobs, ...emails, ...gallery, queued });
 }

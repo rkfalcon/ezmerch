@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getUserWithRole } from "@/lib/auth";
+import { refundParameters } from "@/lib/stripe-refunds";
 import { stripe } from "@/lib/stripe";
 import { revalidatePath } from "next/cache";
 
@@ -46,10 +47,13 @@ export async function issueRefund(orderId: string) {
   }
 
   try {
-    await stripe.refunds.create({
-      payment_intent: order.stripe_payment_intent_id,
-      refund_application_fee: true,
+    const payment = await stripe.paymentIntents.retrieve(order.stripe_payment_intent_id);
+    // Stripe also reverses tax recorded through the linked tax calculation.
+    const refund = await stripe.refunds.create(refundParameters(payment), {
+      idempotencyKey: `ezmerch-full-refund-${order.id}`,
     });
+    if (refund.status !== "succeeded")
+      return { error: "The refund is pending. Its status will update when Stripe confirms it." };
 
     await supabase
       .from("orders")

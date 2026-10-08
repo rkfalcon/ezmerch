@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { ScrollDiagnostics } from "./scroll-diagnostics";
 import { useCart } from "./cart-provider";
 import { CartSheet } from "./cart-sheet";
 
@@ -12,6 +12,7 @@ interface StoreHeaderProps {
     slug: string;
     brand_colors: { primary: string };
     logo_url: string | null;
+    website_url?: string | null;
   };
 }
 
@@ -19,33 +20,35 @@ export function StoreHeader({ store }: StoreHeaderProps) {
   const { totalItems } = useCart();
 
   return (
+    <>
+    <div aria-hidden="true" className="h-[65px] shrink-0" />
     <header
-      className="border-b"
+      className="fixed inset-x-0 top-0 z-30 border-b bg-background text-foreground"
       style={{
-        backgroundColor: store.header_color ?? "#ffffff",
-        color: store.header_text_color ?? "#000000",
+        backgroundColor: store.header_color ?? undefined,
+        color: store.header_text_color ?? undefined,
       }}
     >
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <Link href={`/${store.slug}`} className="flex items-center gap-3">
+      <div className="container mx-auto flex h-16 items-center justify-between gap-3 px-4">
+        <a href={store.website_url && /^https?:\/\//i.test(store.website_url) ? store.website_url : `/${store.slug}`} className="flex min-w-0 items-center gap-2 sm:gap-3">
           {store.logo_url ? (
             <img
               src={store.logo_url}
               alt={store.name}
-              className="h-8 w-8 rounded-full object-cover"
+              className="h-8 w-8 shrink-0 rounded-full object-cover"
             />
           ) : (
             <div
-              className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-white"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
               style={{ backgroundColor: store.brand_colors.primary }}
             >
               {store.name.charAt(0).toUpperCase()}
             </div>
           )}
-          <span className="text-lg font-bold">{store.name}</span>
-        </Link>
+          <span className="truncate text-base font-bold sm:text-lg">{store.name}</span>
+        </a>
 
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-3 sm:gap-4">
           <a
             href={`/${store.slug}#products`}
             className="text-sm text-inherit hover:underline"
@@ -67,6 +70,8 @@ export function StoreHeader({ store }: StoreHeaderProps) {
           </CartSheet>
         </div>
       </div>
+      <ScrollDiagnostics />
     </header>
+    </>
   );
 }

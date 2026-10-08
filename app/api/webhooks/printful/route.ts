@@ -10,19 +10,12 @@ function getAdminClient() {
 }
 
 export async function POST(request: Request) {
-  // Verify webhook signature
-  const webhookSecret = process.env.PRINTFUL_WEBHOOK_SECRET;
-  if (webhookSecret) {
-    const signature = request.headers.get("x-printful-webhook-secret");
-    if (signature !== webhookSecret) {
-      return NextResponse.json(
-        { error: "Invalid webhook signature" },
-        { status: 401 }
-      );
-    }
-  }
-
+  const secret = process.env.PRINTFUL_ORDER_WEBHOOK_SECRET;
+  if (!secret || new URL(request.url).searchParams.get("token") !== secret)
+    return NextResponse.json({error:"Unauthorized"},{status:401});
   const body: PrintfulWebhookEvent = await request.json();
+  if (![process.env.PRINTFUL_STORE_ID,process.env.PRINTFUL_NEXT_STORE_ID].includes(String(body.store)))
+    return NextResponse.json({error:"Unknown store"},{status:401});
   const supabase = getAdminClient();
 
   switch (body.type) {
@@ -38,7 +31,7 @@ export async function POST(request: Request) {
           tracking_number: shipment?.tracking_number ?? null,
           tracking_url: shipment?.tracking_url ?? null,
         })
-        .eq("printful_order_id", order.id);
+        .eq("printful_order_id", order.id).eq("printful_store_id", String(body.store));
 
       break;
     }
@@ -53,7 +46,7 @@ export async function POST(request: Request) {
           status: "fulfillment_failed",
           printful_error: `Order failed in Printful (status: ${order.status})`,
         })
-        .eq("printful_order_id", order.id);
+        .eq("printful_order_id", order.id).eq("printful_store_id", String(body.store));
 
       break;
     }
@@ -68,7 +61,7 @@ export async function POST(request: Request) {
           status: "failed",
           printful_error: "Order canceled in Printful",
         })
-        .eq("printful_order_id", order.id);
+        .eq("printful_order_id", order.id).eq("printful_store_id", String(body.store));
 
       break;
     }

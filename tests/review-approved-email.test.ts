@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
+test('review email waits for enabled ready artwork, deduplicates, and resets for a new logo',async()=>{
+ const db=new PGlite();try{
+ await db.exec(`create role anon;create role authenticated;create schema private;
+ create table stores(id uuid primary key default gen_random_uuid(),owner_id uuid,name text,lineup_logo_path text);
+ create table product_generation_jobs(id uuid default gen_random_uuid(),store_id uuid,template_id uuid,generation_id uuid default gen_random_uuid(),logo_path text,state jsonb);
+ create table products(id uuid default gen_random_uuid(),store_id uuid,template_id uuid,title text,published boolean,global_active boolean,variants jsonb,enabled_colors text[],global_enabled_colors text[],supplier_stock jsonb);
+ create table notifications(id uuid primary key default gen_random_uuid(),recipient_id uuid,store_id uuid,title text,message text,href text,event_key text);
+ create unique index notification_event_recipient on notifications(recipient_id,event_key) where event_key is not null;
+ create table notification_emails(notification_id uuid unique);
+ insert into stores(owner_id,name,lineup_logo_path) values(gen_random_uuid(),'Example shop','logo');
+ insert into product_generation_jobs(store_id,template_id,logo_path,state) select id,gen_random_uuid(),'logo','{"printQuality":{"status":"review"}}' from stores;
+ insert into products(store_id,template_id,title,published,global_active,variants) select store_id,template_id,'Hat',false,true,'[]' from product_generation_jobs;`);
+ await db.exec(readFileSync('supabase/migrations/20260924190000_review_approved_owner_email.sql','utf8'));
+ const count=async()=>Number((await db.query<{n:number}>('select count(*) n from notification_emails')).rows[0].n);
+ await db.exec(`update product_generation_jobs set state='{"printQuality":{"status":"review","reviewedAt":"2026-09-24T19:00:00Z","reviewedBy":"admin"}}';`);
+ assert.equal(await count(),0,'approval alone does not mean ready');
+ await db.exec(`update products set variants='[{"variant_id":1,"color":"Black","image_url":"https://example.com/image.png","sync_variant_id":2}]';`);
+ assert.equal(await count(),0,'drafts are not enabled');
+ await db.exec(`update products set global_active=false,published=true;`);
+ assert.equal(await count(),0,'globally disabled products do not notify');
+ await db.exec(`update products set global_active=true,supplier_stock='{"unavailable":[1]}';`);
+ assert.equal(await count(),0,'stock held products do not notify');
+ await db.exec(`update products set supplier_stock=null,variants=jsonb_set(variants,'{0,artwork_pending}','true');`);
+ assert.equal(await count(),0,'old artwork does not notify');
+ await db.exec(`update products set variants=jsonb_set(variants,'{0,artwork_pending}','false'),enabled_colors=array['Red'];`);
+ assert.equal(await count(),0,'needs an enabled ready color');
+ await db.exec(`update products set enabled_colors=array['Black'];update products set variants=variants;update products set published=false;update products set published=true;`);
+ assert.equal(await count(),1,'one email despite retries and repeated saves');
+ const {rows}=await db.query<{title:string;message:string}>('select title,message from notifications');
+ assert.match(rows[0].title,/approved and enabled: Hat/);assert.match(rows[0].message,/Example shop/);
+ await db.exec(`update product_generation_jobs set generation_id=gen_random_uuid(),state='{"printQuality":{"status":"review"}}';update products set variants=variants;`);
+ assert.equal(await count(),1,'new generation clears prior approval');
+ await db.exec(`update product_generation_jobs set state='{"printQuality":{"status":"review","reviewedAt":"2026-09-25T19:00:00Z","reviewedBy":"admin"}}';update products set variants=variants;`);
+ assert.equal(await count(),2,'new review gets its own notification');
+ }finally{await db.close();}
+});

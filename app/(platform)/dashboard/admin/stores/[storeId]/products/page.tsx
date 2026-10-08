@@ -1,6 +1,7 @@
 import { productDisplayImage } from "@/lib/product-colors";
 import {
   StoreProductColorPills,
+  StoreProductColorCount,
   storeProductEnabled,
   enabledProductClass,
   disabledProductClass,
@@ -64,7 +65,7 @@ export default async function AdminStoreProductsPage({
           <TableHeader>
             <TableRow>
               <TableHead>Title</TableHead>
-              <TableHead>Variants</TableHead>
+              <TableHead>Available colors</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Created</TableHead>
             </TableRow>
@@ -72,9 +73,6 @@ export default async function AdminStoreProductsPage({
           <TableBody>
             {products && products.length > 0 ? (
               products.map((product) => {
-                const variantCount = Array.isArray(product.variants)
-                  ? product.variants.length
-                  : 0;
                 return (
                   <TableRow
                     key={product.id}
@@ -100,7 +98,7 @@ export default async function AdminStoreProductsPage({
                         />
                       </div>
                     </TableCell>
-                    <TableCell>{variantCount} variants</TableCell>
+                    <TableCell><StoreProductColorCount product={product} /></TableCell>
                     <TableCell>
                       <ProductPublishToggle
                         productId={product.id}

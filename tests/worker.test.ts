@@ -136,6 +136,7 @@ test("generation publishes the first color and all its sizes before remaining mo
     } as unknown as Parameters<typeof advanceJob>[0];
     const client = new PrintfulClient(async (url, init) => {
       const path = new URL(String(url)).pathname;
+      if (path.startsWith("/products/variant/")) return Response.json({result:{variant:{product_id:71}}});
       if (path === "/products/71")
         return Response.json({
           result: {

@@ -1,4 +1,6 @@
 "use client";
+import { productTitle } from "@/lib/product-title";
+
 
 import Link from "next/link";
 import { useState } from "react";
@@ -23,10 +25,11 @@ export function CartSheet({
   const [open, setOpen] = useState(false);
   const { items, removeItem, updateQuantity, totalCents } = useCart();
 
+  // Keep the document scroll container stable when iOS browser chrome changes.
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet modal="trap-focus" open={open} onOpenChange={setOpen}>
       <SheetTrigger render={children as React.ReactElement}>{}</SheetTrigger>
-      <SheetContent>
+      <SheetContent className="overscroll-contain">
         <SheetHeader>
           <SheetTitle>Shopping Cart</SheetTitle>
           <SheetDescription>
@@ -37,15 +40,15 @@ export function CartSheet({
         </SheetHeader>
 
         {items.length > 0 && (
-          <div className="mt-6 flex flex-col gap-4 flex-1">
-            <div className="space-y-4 flex-1 overflow-y-auto">
+          <div className="mt-6 flex min-h-0 flex-col gap-4 flex-1">
+            <div className="space-y-4 min-h-0 flex-1 overflow-y-auto overscroll-contain">
               {items.map((item) => (
                 <div
                   key={`${item.productId}-${item.variantKey}`}
                   className="flex gap-3 border-b pb-3"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{item.title}</p>
+                    <p className="text-sm font-medium truncate">{productTitle(item.title)}</p>
                     <p className="text-xs text-muted-foreground">
                       {item.variantName}
                     </p>

@@ -1,3 +1,5 @@
+import { previewMetadata } from "@/lib/lineup/preview-cache";
+import { PrintfulClient } from "@/lib/lineup/printful";
 import { templatePreview } from "@/lib/lineup/template-preview";
 import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -58,6 +60,15 @@ export default async function TemplatesPage() {
     } catch {
       // A temporary catalog failure must not prevent managing other templates.
     }
+  }
+  const db = createAdminClient();
+  const client = new PrintfulClient();
+  for (const template of data ?? []) {
+    if (!template.catalog_product_id) continue;
+    try {
+      const catalog = await previewMetadata(db, `catalog:${template.catalog_product_id}`, () => client.product(template.catalog_product_id));
+      if (previews[template.id]) previews[template.id].colors = [...new Set(catalog.variants.map(v => v.color?.trim() || "Default"))];
+    } catch { /* Keep available preview data during a supplier outage. */ }
   }
   return (
     <LineupTemplates

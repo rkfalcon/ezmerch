@@ -1,11 +1,12 @@
+import { siteOrigin } from "@/lib/site";
 import type { Metadata } from "next";
-export const storefrontOrigin = "https://www.ezmerch.store";
+export const storefrontOrigin = siteOrigin;
 export function storeMetadata(store: {
   name: string;
   slug: string;
   logo_url: string | null;
 }): Metadata {
-  const title = `EzMerch - ${store.name}`;
+  const title = `VeryMerch - ${store.name}`;
   const url = `${storefrontOrigin}/${encodeURIComponent(store.slug)}`;
   const images =
     store.logo_url && /^https?:\/\//i.test(store.logo_url)
@@ -16,7 +17,7 @@ export function storeMetadata(store: {
     description: title,
     openGraph: {
       type: "website",
-      siteName: "EzMerch",
+      siteName: "VeryMerch",
       title,
       description: title,
       url,

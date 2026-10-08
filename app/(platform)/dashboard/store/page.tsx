@@ -20,6 +20,7 @@ export default async function StoreOverviewPage() {
     .from("stores")
     .select("*")
     .eq("owner_id", user.id)
+    .eq("id", user.storeId)
     .order("created_at")
     .limit(1)
     .maybeSingle();
@@ -37,7 +38,7 @@ export default async function StoreOverviewPage() {
     orders?.filter((o) => ["paid", "fulfilling"].includes(o.status)).length ??
     0;
   const totalRevenue =
-    orders?.reduce(
+    orders?.filter(o => o.status !== "refunded").reduce(
       (sum, o) => sum + (o.subtotal_cents - o.platform_fee_cents),
       0,
     ) ?? 0;
@@ -48,7 +49,7 @@ export default async function StoreOverviewPage() {
         <div>
           <h1 className="text-2xl font-bold">{store?.name}</h1>
           <p className="text-muted-foreground font-mono text-sm">
-            ezmerch.store/{store?.slug}
+            verymerch.com/{store?.slug}
           </p>
         </div>
         {store?.stripe_account_id ? (
@@ -77,15 +78,16 @@ export default async function StoreOverviewPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Your Earnings</CardDescription>
+            <CardDescription>Earnings including pending shares</CardDescription>
             <CardTitle className="text-3xl">
               ${(totalRevenue / 100).toFixed(2)}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xs text-muted-foreground">
-              60% of product subtotals
+              70% after product and printing costs. Pending shares have a 30-day Stripe setup deadline.
             </p>
+            <Link className="text-sm underline" href="/dashboard/store/earnings">View transfers and deadlines</Link>
           </CardContent>
         </Card>
       </div>

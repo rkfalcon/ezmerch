@@ -1,3 +1,7 @@
+import { insideLabelPlacement } from "@/lib/lineup/inside-label";
+import { stockTechnique } from "@/lib/lineup/catalog-techniques";
+import { productDescription } from "@/lib/lineup/product-description";
+import { templateColors } from "@/lib/lineup/color-limit";
 import { leftChestPlacement } from "@/lib/lineup/placement";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
@@ -61,6 +65,9 @@ export async function POST(request: Request) {
               template.size_prices,
             ),
           );
+          const { error: colorError } = await db.from("product_templates")
+            .update({ enabled_colors: templateColors(catalog.variants, template.enabled_colors) }).eq("id", template.id);
+          if (colorError) throw colorError;
           ready.push({
             id: template.id,
             catalog_product_id: productId,
@@ -150,6 +157,11 @@ export async function POST(request: Request) {
       client.product(productId),
       client.printfiles(productId, technique),
     ]);
+    if (placement.startsWith("label_inside") || (insideLabelPlacement(catalog.product) && placement.startsWith("label_outside")))
+      throw new Error("Inside labels are reserved for VeryMerch branding. Choose an exterior logo placement.");
+    const selectedTechnique = stockTechnique(technique, catalog.product);
+    if (!selectedTechnique || !catalog.product.techniques?.some(t => t.key.toLowerCase() === selectedTechnique))
+      throw new Error("This product does not support the selected technique.");
     const available = catalog.variants.filter((v) => v.in_stock !== false);
     if (catalog.product.is_discontinued || !available.length)
       throw new Error("No available product variants");
@@ -161,10 +173,14 @@ export async function POST(request: Request) {
     available.forEach((v) => variantRetailPrice(v.size, price, sizePrices));
     if (groups.some((g) => !files.option_groups?.includes(g)))
       throw new Error("Select an available mockup style");
+    const { data: existing } = body.id ? await db.from("product_templates")
+      .select("catalog_product_id,enabled_colors").eq("id", body.id).single() : { data: null };
     const value = {
+      allow_front_fallback: body.allow_front_fallback === true && technique === "dtg" && ["front", leftChestPlacement].includes(placement),
+      enabled_colors: templateColors(catalog.variants, existing?.catalog_product_id === productId ? existing.enabled_colors : null),
       title,
       category,
-      description: String(body.description ?? "").slice(0, 5000),
+      description: productDescription(body.description ?? catalog.product.description),
       catalog_product_id: productId,
       catalog_match: catalog.product.model || catalog.product.title,
       retail_price_cents: price,

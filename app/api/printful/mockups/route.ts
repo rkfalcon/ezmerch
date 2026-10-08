@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/auth";
+import { printfulCredentials } from "@/lib/printful-connection";
 
 const PRINTFUL_API = "https://api.printful.com";
-const PRINTFUL_TOKEN = process.env.PRINTFUL_API_TOKEN!;
-const PRINTFUL_STORE_ID = process.env.PRINTFUL_STORE_ID!;
 
 async function printfulGet(endpoint: string) {
+  const {token, storeId} = await printfulCredentials();
   const res = await fetch(`${PRINTFUL_API}${endpoint}`, {
     headers: {
-      Authorization: `Bearer ${PRINTFUL_TOKEN}`,
-      "X-PF-Store-Id": PRINTFUL_STORE_ID,
+      Authorization: `Bearer ${token}`,
+      "X-PF-Store-Id": storeId,
     },
   });
   if (!res.ok) throw new Error(`Printful API ${res.status}: ${await res.text()}`);
@@ -18,12 +18,13 @@ async function printfulGet(endpoint: string) {
 }
 
 async function printfulPost(endpoint: string, body: unknown) {
+  const {token, storeId} = await printfulCredentials();
   const res = await fetch(`${PRINTFUL_API}${endpoint}`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${PRINTFUL_TOKEN}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      "X-PF-Store-Id": PRINTFUL_STORE_ID,
+      "X-PF-Store-Id": storeId,
     },
     body: JSON.stringify(body),
   });

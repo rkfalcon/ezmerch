@@ -1,16 +1,13 @@
 import { onboardingStore } from "@/lib/onboarding/store";
-import { stripeReady } from "@/lib/onboarding/validation";
-import { stripe } from "@/lib/stripe";
 import { revalidatePath } from "next/cache";
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    const body = await request.json();
+    if (body.acceptEarningsPolicy !== true)
+      throw new Error("Accept the earnings policy before starting sales.");
     const { store, db } = await onboardingStore();
-    if (!store?.onboarding_started_at || !store.stripe_account_id)
-      throw new Error("Complete Stripe setup first.");
-    if (!stripeReady(await stripe.accounts.retrieve(store.stripe_account_id)))
-      throw new Error(
-        "Stripe has not finished verifying your payment and payout details. Continue Stripe setup or check again shortly.",
-      );
+    if (!store?.onboarding_started_at)
+      throw new Error("Create your store first.");
     const { count, error } = await db
       .from("products")
       .select("id", { count: "exact", head: true })
@@ -24,7 +21,11 @@ export async function POST() {
       );
     const { error: saveError } = await db
       .from("stores")
-      .update({ selling_enabled: true })
+      .update({
+        selling_enabled: true,
+        earnings_policy_accepted_at: new Date().toISOString(),
+        earnings_policy_version: "owner-margin-70-30-30days-v1",
+      })
       .eq("id", store.id);
     if (saveError) throw saveError;
     revalidatePath("/");

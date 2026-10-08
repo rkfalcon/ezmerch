@@ -1,0 +1,17 @@
+# Product model galleries
+
+Keep the current primary/color thumbnail. Add front-facing Men's 5, Women's 5 and Couple's mockups for eligible shirt/hoodie templates when Printful offers them. When these exact groups are unavailable, automatically select supported basic alternatives, excluding the explicitly selected primary group. Tank tops prefer Men’s 2, Men’s 3 and Flat; other products prefer Men’s, Women’s, Lifestyle, Flat and Product details after the three requested groups. Select up to three; exclude seasonal, production and label groups. Product galleries filter images by the selected catalog variant; changing colors resets to the primary image.
+
+Extra views run independently after the source lineup job completes, never hold publication or change sync products, prices, stock, approval, emails or owner color choices. Store copied images permanently in lineup-assets. Gallery jobs use leases/retries, share supplier submission pacing with lineup work, and yield submissions to pending primary generation. Source generation and state revision checks reject stale results; logo replacement clears galleries. The scheduled worker discovers existing and future completed product jobs across all categories.
+
+Verification: tests for style selection, supplier response extraction, color isolation, leases, source invalidation and stale writes; TypeScript/lint/build; live supplier probe and storefront browser gallery checks. Backfill all compatible existing products after deployment.
+
+## Rollout
+
+Deployed and applied migration 20260925180000. All 204 tests passed, TypeScript passed, and live browser checks confirmed primary/model selection and color isolation. Printful supports all requested styles for Gildan 18500 and Bella + Canvas 3001. Comfort Colors 1717 and Bella + Canvas 3501 have none of the exact requested styles; their galleries are skipped pending an alternative choice. Eight eligible existing store products have 32 rendering batches, with 25 colors each. Backfill is asynchronous through the cron worker; `scripts/product-gallery-worker.ts` can accelerate the queue and exits once finished or after one hour. `scripts/check-product-galleries.ts` reports color coverage and errors. Temporary provider/storage failures retry with the same task and deterministic paths.
+
+## Supported-style fallback update
+
+The admin template editor now lists automatic additional views or explains when Printful supplies no alternatives. Migration 20260925193000 removes the category allowlist and retries previously skipped long sleeves. Existing Comfort Colors jobs remain untouched at the user’s request. Existing successful galleries are retained. Supplier responses can include detail/non-front views; extraction prefers the artwork-facing view and keeps variant mappings. Tests cover tank and unknown categories, explicit primary exclusion, detail/back extraction, and retrying skipped work.
+
+Fallback rollout deployed on September 25. All 206 tests passed before the additional supplier-response regression; the seven targeted gallery/database tests, TypeScript and lint passed after that correction. Live Mazellist black long sleeve and tank galleries expose all three fallback buttons. Other colors/stores continue through the existing cron queue. Corrected extraction excludes opposite-side extras when inferring the unnamed primary style, preventing a blank back from replacing the flat front; refreshed fallback images use views-v2 storage paths.

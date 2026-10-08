@@ -1,3 +1,4 @@
+import { productTitle } from "@/lib/product-title";
 import { inStock, type SupplierStock } from "@/lib/supplier-stock";
 import Link from "next/link";
 import { enabledVariants, productDisplayImage } from "@/lib/product-colors";
@@ -54,22 +55,22 @@ export function ProductCard({ product, storeSlug }: ProductCardProps) {
 
   return (
     <Link href={`/${storeSlug}/products/${product.id}`}>
-      <Card className="overflow-hidden transition-shadow hover:shadow-md h-full">
+      <Card className="overflow-hidden pt-0 transition-all hover:border-primary/50 hover:shadow-md h-full">
         <div className="aspect-square bg-muted flex items-center justify-center">
           {thumbnail ? (
             <img
               src={thumbnail}
-              alt={product.title}
+              alt={productTitle(product.title)}
               className="h-full w-full object-contain"
             />
           ) : (
             <span className="text-4xl text-muted-foreground">
-              {product.title.charAt(0).toUpperCase()}
+              {productTitle(product.title).charAt(0).toUpperCase()}
             </span>
           )}
         </div>
         <CardContent className="pt-4">
-          <h3 className="font-medium truncate">{product.title}</h3>
+          <h3 className="min-h-10 font-semibold leading-5 line-clamp-2">{productTitle(product.title)}</h3>
         </CardContent>
         <CardFooter>
           <p className="text-sm font-semibold">{inStock(variants, product.supplier_stock).length ? priceDisplay : "Sold out"}</p>

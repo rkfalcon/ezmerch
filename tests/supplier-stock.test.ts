@@ -153,3 +153,13 @@ test("stock updates propagate transactionally, deduplicate alerts, preserve owne
     await db.close();
   }
 });
+
+test('availability explicitly requests USA regardless of the account default region', async () => {
+ const client=new PrintfulClient(async input=>{
+  const url=new URL(String(input));
+  if(url.pathname==='/products/71')return Response.json({result:{product:{is_discontinued:false,techniques:[{key:'DTG',is_default:true}]},variants:[{id:1,in_stock:true}]}});
+  assert.equal(url.searchParams.get('selling_region_name'),'usa');
+  return Response.json({data:[{catalog_variant_id:1,techniques:[{technique:'dtg',selling_regions:[{name:'usa',availability:'in stock'}]}]}]});
+ });
+ const stock=await readStock(71,'dtg',client);assert.deepEqual(stock.available,[1]);assert.deepEqual(stock.unavailable,[]);
+});

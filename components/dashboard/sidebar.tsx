@@ -24,6 +24,9 @@ interface UserWithRole {
 }
 
 const adminLinks = [
+  { href: "/dashboard/admin/quality", label: "Artwork quality" },
+  { href: "/dashboard/admin/emails", label: "Emails" },
+  { href: "/dashboard/admin/earnings", label: "Owner earnings" },
   { href: "/dashboard/admin/templates", label: "Product templates" },
   { href: "/dashboard/notifications", label: "Notifications" },
   { href: "/dashboard/admin/stores", label: "Stores" },
@@ -31,6 +34,8 @@ const adminLinks = [
 ];
 
 const storeOwnerLinks = [
+  { href: "/dashboard/store/share", label: "Share your store" },
+  { href: "/dashboard/store/earnings", label: "Earnings" },
   { href: "/dashboard/onboarding", label: "Store setup" },
   { href: "/dashboard/notifications", label: "Notifications" },
   { href: "/dashboard/store", label: "Overview" },
@@ -47,7 +52,7 @@ export function DashboardSidebar({ user }: { user: UserWithRole }) {
     <Sidebar>
       <SidebarHeader className="border-b px-4 py-3">
         <Link href="/dashboard" className="text-lg font-bold">
-          EZMerch
+          VeryMerch
         </Link>
         <p className="text-xs text-muted-foreground truncate">{user.email}</p>
       </SidebarHeader>

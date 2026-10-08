@@ -1,4 +1,9 @@
 "use client";
+import { ProductGallery } from "@/components/storefront/product-gallery";
+import { selectedGallery, type GalleryImage } from "@/lib/lineup/gallery";
+import { ProductShare } from "@/components/storefront/product-share";
+import { productTitle } from "@/lib/product-title";
+
 
 import { inStock } from "@/lib/supplier-stock";
 import { useEffect, useState } from "react";
@@ -26,7 +31,9 @@ interface Product {
   title: string;
   description: string | null;
   thumbnail_url: string | null;
+  gallery_images: GalleryImage[];
   variants: Variant[];
+  stores: { name: string; slug: string };
 }
 
 export default function ProductDetailPage() {
@@ -47,7 +54,7 @@ export default function ProductDetailPage() {
       const { data } = await supabase
         .from("products")
         .select(
-          "id, title, description, thumbnail_url, variants, supplier_stock, enabled_colors, global_enabled_colors, default_color, stores!inner(slug)",
+          "id, title, description, thumbnail_url, gallery_images, variants, supplier_stock, enabled_colors, global_enabled_colors, default_color, stores!inner(slug,name)",
         )
         .eq("id", productId)
         .eq("published", true)
@@ -72,7 +79,8 @@ export default function ProductDetailPage() {
           return;
         }
         setUnavailable(false);
-        const p = { ...data, variants } as Product;
+        const store = Array.isArray(data.stores) ? data.stores[0] : data.stores;
+        const p: Product = { ...data, variants, stores: store };
         setProduct(p);
         setSelectedVariant(
           defaultVariant(variants, data.default_color) ?? null,
@@ -129,8 +137,8 @@ export default function ProductDetailPage() {
     addItem({
       productId: product.id,
       variantKey: `${selectedVariant.variant_id}`,
-      title: product.title,
-      variantName: selectedVariant.name,
+      title: productTitle(product.title),
+      variantName: [colorName(selectedVariant), selectedVariant.size].filter(Boolean).join(" / "),
       priceCents: Math.round(parseFloat(selectedVariant.retail_price) * 100),
       thumbnailUrl:
         selectedVariant.image_url ?? product.thumbnail_url ?? undefined,
@@ -143,26 +151,14 @@ export default function ProductDetailPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="grid md:grid-cols-2 gap-8">
         {/* Image */}
-        <div className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden">
-          {selectedVariant?.image_url || product.thumbnail_url ? (
-            <img
-              src={selectedVariant?.image_url || product.thumbnail_url!}
-              alt={product.title}
-              className="h-full w-full object-contain"
-            />
-          ) : (
-            <span className="text-6xl text-muted-foreground">
-              {product.title.charAt(0).toUpperCase()}
-            </span>
-          )}
-        </div>
+        <ProductGallery key={`${product.id}:${selectedVariant?.color}`} title={productTitle(product.title)}
+          images={selectedGallery(selectedVariant?.image_url || product.thumbnail_url, selectedVariant?.variant_id, product.gallery_images ?? [])}>
+          <ProductShare key={product.id} store={product.stores} product={product} />
+        </ProductGallery>
 
         {/* Details */}
         <div>
-          <h1 className="text-3xl font-bold">{product.title}</h1>
-          {product.description && (
-            <p className="mt-3 text-muted-foreground">{product.description}</p>
-          )}
+          <h1 className="text-3xl font-bold">{productTitle(product.title)}</h1>
 
           {selectedVariant && (
             <p className="mt-4 text-2xl font-bold">
@@ -237,7 +233,14 @@ export default function ProductDetailPage() {
             {added ? "Added to Cart!" : "Add to Cart"}
           </Button>
 
-          <p className="mt-4 text-xs text-muted-foreground">
+          {product.description && (
+            <details key={product.id} className="mt-6 border-y py-3">
+              <summary className="cursor-pointer py-1 font-medium">Product description</summary>
+              <p className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{product.description}</p>
+            </details>
+          )}
+
+          <p className="mt-4 text-xs font-bold">
             Print-on-demand items cannot be returned or exchanged. Refunds only
             for defective or damaged items.
           </p>

@@ -193,7 +193,7 @@ export function MockupPreview({
       // Poll for result
       const taskKey = taskData.task_key;
       if (!taskKey) {
-        setError("No task key returned from Printful");
+        setError("The preview could not be started. Please try again.");
         setGenerating(false);
         return;
       }
@@ -239,7 +239,7 @@ export function MockupPreview({
           const errMsg = result.error || "Mockup generation failed";
           if (errMsg.includes("Internal Server Error")) {
             setError(
-              "Printful could not process this image. Make sure your design is at least 300 DPI and meets the minimum dimensions for the print area (typically 1800x2400 px for T-shirts). Try uploading a higher resolution image."
+              "We could not process this image. Make sure your design is at least 300 DPI and meets the minimum dimensions for the print area (typically 1800x2400 px for T-shirts). Try uploading a higher resolution image."
             );
           } else {
             setError(errMsg);

@@ -1,6 +1,7 @@
+import { DisabledDate } from "./disabled-date";
 import { SupplierStockStatus } from "./supplier-stock-status";
 import type { SupplierStock } from "@/lib/supplier-stock";
-import { colorName, enabledVariants } from "@/lib/product-colors";
+import { dashboardColors, colorName, enabledVariants } from "@/lib/product-colors";
 
 export const enabledProductClass =
   "border-emerald-200 bg-emerald-50/60 hover:bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50";
@@ -75,6 +76,7 @@ type StoreProductAvailability = {
   supplier_stock?: SupplierStock | null;
   published: boolean;
   global_active?: boolean;
+  global_disabled_at?: string | null;
   enabled_colors?: string[] | null;
   global_enabled_colors?: string[] | null;
   variants: { color?: string | null }[] | string;
@@ -102,8 +104,10 @@ export function storeProductEnabled(product: StoreProductAvailability) {
 
 export function StoreProductColorPills({
   product,
+  ownerView = false,
 }: {
   product: StoreProductAvailability;
+  ownerView?: boolean;
 }) {
   return (
     <div>
@@ -116,9 +120,10 @@ export function StoreProductColorPills({
               ? "No enabled colors — hidden from storefront"
               : "Enabled in this store"}
       </p>
+      {product.global_active === false && <DisabledDate date={product.global_disabled_at} />}
       <SupplierStockStatus stock={product.supplier_stock} />
       <ColorAvailabilityPills
-        colors={[...new Set(variantsOf(product).map(colorName))]}
+        colors={dashboardColors([...new Set(variantsOf(product).map(colorName))], ownerView, product.global_active !== false, product.global_enabled_colors)}
         productEnabled={product.published}
         enabledColors={product.enabled_colors}
         globalColors={product.global_enabled_colors}
@@ -126,4 +131,16 @@ export function StoreProductColorPills({
       />
     </div>
   );
+}
+
+/** Count unique, globally available colors, matching the owner's color picker. */
+export function StoreProductColorCount({ product }: { product: StoreProductAvailability }) {
+  const colors = dashboardColors(
+    [...new Set(variantsOf(product).map(colorName))],
+    true,
+    product.global_active !== false,
+    product.global_enabled_colors,
+  );
+  const enabled = colors.filter(color => product.enabled_colors == null || product.enabled_colors.includes(color)).length;
+  return <span className="whitespace-nowrap">{enabled} of {colors.length} enabled</span>;
 }

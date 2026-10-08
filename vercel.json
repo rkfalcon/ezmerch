@@ -8,6 +8,25 @@
     {
       "path": "/api/cron/availability",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/earnings",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/invitations",
+      "schedule": "*/5 * * * *"
     }
-  ]
+  ],
+  "functions": {
+    "app/api/queues/lineup/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "lineup-work",
+          "retryAfterSeconds": 30
+        }
+      ]
+    }
+  }
 }

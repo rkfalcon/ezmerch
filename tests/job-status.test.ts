@@ -6,7 +6,7 @@ import { jobStatus } from "../lib/lineup/job-status";
 test("provider cooldown and stock shortages are automatic waits, not failed logo uploads", () => {
   assert.equal(
     jobStatus("pending", "Printful 429: too many requests").label,
-    "Waiting for Printful",
+    "Waiting for rendering",
   );
   assert.equal(
     jobStatus("pending", "No available variants for this product").label,

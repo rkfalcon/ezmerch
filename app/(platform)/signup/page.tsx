@@ -73,7 +73,7 @@ function SignupForm() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-          <CardDescription>Get started with EZMerch</CardDescription>
+          <CardDescription>Get started with VeryMerch</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={handleSubmit} className="space-y-4">

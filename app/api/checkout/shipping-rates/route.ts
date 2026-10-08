@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const shipping = await calculateShipping(address, items, store);
+    const shipping = await calculateShipping(address, items, { shipping_policy: "passthrough", shipping_discount_cents: null });
     return NextResponse.json(shipping);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to calculate shipping";

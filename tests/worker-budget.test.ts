@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { runLineupWorker } from "../lib/lineup/worker";
 
-test("a worker invocation advances only one ready job even if more remain", async () => {
+test("a worker invocation advances at most four ready steps even if more remain", async () => {
   const previous = {
     fetch: globalThis.fetch,
     url: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -19,7 +19,7 @@ test("a worker invocation advances only one ready job even if more remain", asyn
     if (url.includes("/rpc/claim_lineup_job")) {
       claims++;
       return Response.json(
-        claims > 2
+        claims > 10
           ? []
           : [
               {
@@ -56,13 +56,13 @@ test("a worker invocation advances only one ready job even if more remain", asyn
   };
   try {
     const result = await runLineupWorker(5000);
-    assert.equal(result.processed, 1);
+    assert.equal(result.processed, 4);
     assert.equal(
       claims,
-      1,
-      "must yield instead of immediately claiming another job",
+      4,
+      "must yield at the bounded step limit",
     );
-    assert.equal(saves, 1);
+    assert.equal(saves, 4);
   } finally {
     globalThis.fetch = previous.fetch;
     for (const [key, value] of Object.entries({

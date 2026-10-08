@@ -10,6 +10,7 @@ function getAdminClient() {
 }
 
 interface OrderData {
+  printfulStoreId?: string;
   storeId: string;
   customerId: string | null;
   customerEmail: string;
@@ -45,6 +46,7 @@ export async function createOrderFromPayment(data: OrderData) {
     .from("orders")
     .insert({
       store_id: data.storeId,
+      printful_store_id: data.printfulStoreId,
       customer_id: data.customerId,
       customer_email: data.customerEmail,
       stripe_payment_intent_id: data.stripePaymentIntentId,
@@ -104,10 +106,10 @@ async function triggerPrintfulFulfillment(orderId: string, data: OrderData) {
         sync_variant_id: item.printfulSyncVariantId,
         quantity: item.quantity,
       })),
-    });
+    }, data.printfulStoreId);
 
     // Confirm the order (Printful charges at this point)
-    await confirmOrder(printfulOrder.id);
+    await confirmOrder(printfulOrder.id, data.printfulStoreId);
 
     // Update order with Printful ID and status
     await supabase
@@ -211,6 +213,7 @@ export async function retryFulfillment(orderId: string) {
   await triggerPrintfulFulfillment(orderId, {
     ...order,
     storeId: order.store_id,
+    printfulStoreId: order.printful_store_id ?? process.env.PRINTFUL_STORE_ID,
     customerId: order.customer_id,
     customerEmail: order.customer_email,
     stripePaymentIntentId: order.stripe_payment_intent_id,

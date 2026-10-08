@@ -1,3 +1,8 @@
+import {
+  recordOwnerEarning,
+  recordPayoutReadiness,
+  wakeOwnerEarning,
+} from "@/lib/earnings/service";
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import Stripe from "stripe";
@@ -41,13 +46,10 @@ export async function POST(request: Request) {
   switch (event.type) {
     case "account.updated": {
       const account = event.data.object as Stripe.Account;
-      if (account.charges_enabled && account.payouts_enabled) {
-        // Update the store's Stripe status
-        await supabase
-          .from("stores")
-          .update({ stripe_account_id: account.id })
-          .eq("stripe_account_id", account.id);
-      }
+      await recordPayoutReadiness(
+        account,
+        new Date(event.created * 1000).toISOString(),
+      );
       break;
     }
 
@@ -64,7 +66,13 @@ export async function POST(request: Request) {
         .eq("stripe_payment_intent_id", paymentIntent.id)
         .single();
 
-      if (existing) break; // Already processed
+      if (existing) {
+        await recordOwnerEarning(
+          paymentIntent,
+          new Date(event.created * 1000).toISOString(),
+        );
+        break;
+      }
 
       // Parse metadata from checkout
       const metadata = paymentIntent.metadata;
@@ -74,6 +82,7 @@ export async function POST(request: Request) {
       try {
         await createOrderFromPayment({
           storeId,
+          printfulStoreId: metadata.printful_store_id || process.env.PRINTFUL_STORE_ID,
           customerId: null, // Guest checkout — could look up by email
           customerEmail: metadata.customer_email,
           stripePaymentIntentId: paymentIntent.id,
@@ -97,8 +106,16 @@ export async function POST(request: Request) {
             }),
           ),
         });
+        await recordOwnerEarning(
+          paymentIntent,
+          new Date(event.created * 1000).toISOString(),
+        );
       } catch (err) {
         console.error("Order creation failed:", err);
+        return NextResponse.json(
+          { error: "Order processing failed" },
+          { status: 500 },
+        );
       }
       break;
     }
@@ -110,7 +127,8 @@ export async function POST(request: Request) {
           ? charge.payment_intent
           : charge.payment_intent?.id;
 
-      if (paymentIntentId) {
+      if (paymentIntentId) await wakeOwnerEarning(paymentIntentId);
+      if (paymentIntentId && charge.refunded) {
         await supabase
           .from("orders")
           .update({ status: "refunded" })
@@ -119,15 +137,22 @@ export async function POST(request: Request) {
       break;
     }
 
-    case "charge.dispute.created": {
+    case "charge.dispute.created":
+    case "charge.dispute.closed": {
       const dispute = event.data.object as Stripe.Dispute;
       const chargeId =
         typeof dispute.charge === "string"
           ? dispute.charge
           : dispute.charge?.id;
 
-      // Log dispute — detailed handling in Unit 11
-      console.log(`Dispute created for charge: ${chargeId}`);
+      if (chargeId) {
+        const charge = await stripe.charges.retrieve(chargeId);
+        const paymentId =
+          typeof charge.payment_intent === "string"
+            ? charge.payment_intent
+            : charge.payment_intent?.id;
+        if (paymentId) await wakeOwnerEarning(paymentId);
+      }
       break;
     }
   }

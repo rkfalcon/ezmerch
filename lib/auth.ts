@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { activeStoreId } from "@/lib/active-store";
 import { redirect } from "next/navigation";
 
 export async function getUser() {
@@ -31,7 +32,11 @@ export async function getUserWithRole() {
       roles,
       isAdmin: roles.some((r) => r.role === "admin"),
       isStoreOwner: roles.some((r) => r.role === "store_owner"),
-      storeId: roles.find((r) => r.role === "store_owner")?.store_id ?? null,
+      storeId: await activeStoreId(
+        roles
+          .filter((r) => r.role === "store_owner" && r.store_id)
+          .map((r) => ({ id: r.store_id })),
+      ),
     };
   }
 
@@ -40,9 +45,10 @@ export async function getUserWithRole() {
     data: { session },
   } = await supabase.auth.getSession();
 
-  const jwtRole = (session?.access_token
-    ? JSON.parse(atob(session.access_token.split(".")[1]))
-    : {}
+  const jwtRole = (
+    session?.access_token
+      ? JSON.parse(atob(session.access_token.split(".")[1]))
+      : {}
   ).user_role;
 
   return {

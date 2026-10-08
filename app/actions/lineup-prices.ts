@@ -1,4 +1,5 @@
 "use server";
+import { assertMinimumPrices } from "@/lib/lineup/minimum-price";
 import { getUserWithRole } from "@/lib/auth";
 import { applySizePrice } from "@/lib/lineup/size-prices";
 import { lineupStoreAccess } from "@/lib/lineup/access";
@@ -21,7 +22,7 @@ export async function setProductPrice(
     const db = createAdminClient();
     const { data: product, error } = await db
       .from("products")
-      .select("store_id,variants,updated_at")
+      .select("store_id,variants,updated_at,template_id")
       .eq("id", productId)
       .single();
     if (error || !product) throw new Error("Product not found");
@@ -33,6 +34,13 @@ export async function setProductPrice(
     if (!Array.isArray(variants) || !variants.length)
       throw new Error("Product has no variants");
     const updated = applySizePrice(variants, priceCents, size);
+    if (product.template_id) {
+      const { data: template, error: templateError } = await db
+        .from("product_templates").select("retail_price_cents,size_prices")
+        .eq("id", product.template_id).single();
+      if (templateError || !template) throw new Error("Cannot verify the minimum price. Please try again.");
+      assertMinimumPrices(updated, template);
+    }
     const { error: saveError } = await db
       .from("products")
       .update({ variants: updated })

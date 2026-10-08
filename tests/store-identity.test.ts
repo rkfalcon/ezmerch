@@ -35,9 +35,9 @@ test("store title and sharing metadata use its clean URL, name and current logo"
     slug: "mazellist",
     logo_url: "https://example.com/logo.png",
   });
-  assert.equal(m.title, "EzMerch - Mazellist");
+  assert.equal(m.title, "VeryMerch - Mazellist");
   assert.equal(m.description, m.title);
-  assert.equal(m.openGraph?.url, "https://www.ezmerch.store/mazellist");
+  assert.equal(m.openGraph?.url, "https://www.verymerch.com/mazellist");
   assert.deepEqual(m.openGraph?.images, [
     { url: "https://example.com/logo.png", alt: "Mazellist logo" },
   ]);

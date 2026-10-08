@@ -1,7 +1,9 @@
+import { siteOrigin } from "@/lib/site";
 import { productDisplayImage } from "@/lib/product-colors";
 import { StoreBannerForm } from "@/components/dashboard/store-banner-form";
 import {
   StoreProductColorPills,
+  StoreProductColorCount,
   storeProductEnabled,
   enabledProductClass,
   disabledProductClass,
@@ -29,7 +31,10 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StoreForm } from "@/components/dashboard/store-form";
-import { ClaimLinkCard } from "@/components/dashboard/claim-link-card";
+import { StoreInvitation } from "@/components/dashboard/store-invitation";
+import { toInvitationStore } from "@/lib/invitations/email";
+import { invitationTemplate } from "@/lib/invitations/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ProductPublishToggle } from "@/components/dashboard/product-publish-toggle";
 import { RefundButton } from "@/components/dashboard/refund-button";
 import { LineupLogo } from "@/components/dashboard/lineup-logo";
@@ -101,7 +106,7 @@ export default async function AdminStoreDetailPage({
         <div>
           <h1 className="text-2xl font-bold">{store.name}</h1>
           <p className="text-muted-foreground font-mono text-sm">
-            ezmerch.store/{store.slug}
+            verymerch.com/{store.slug}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -121,13 +126,13 @@ export default async function AdminStoreDetailPage({
         </div>
       </div>
 
-      {!store.claimed && store.claim_token && (
+      {!store.claimed && (
         <div className="mb-6">
-          <ClaimLinkCard storeId={store.id} claimToken={store.claim_token} />
+          <StoreInvitation storeId={store.id} store={toInvitationStore(store, products ?? [])} template={await invitationTemplate()} origin={siteOrigin} invitations={(await createAdminClient().from("store_invitations").select("id,recipient_email,created_at,expires_at,sent_at,email_status,accepted_at,revoked_at,last_error").eq("store_id", store.id).order("created_at", {ascending:false}).limit(10)).data ?? []} />
         </div>
       )}
 
-      <LineupLogo storeId={storeId} logoUrl={store.logo_url} />
+      <LineupLogo adminView storeId={storeId} logoUrl={store.logo_url} />
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -163,7 +168,7 @@ export default async function AdminStoreDetailPage({
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription>Platform Fees</CardDescription>
+                <CardDescription>Platform Retained</CardDescription>
                 <CardTitle className="text-3xl">
                   ${(platformFees / 100).toFixed(2)}
                 </CardTitle>
@@ -214,7 +219,7 @@ export default async function AdminStoreDetailPage({
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
-                  <TableHead>Variants</TableHead>
+                  <TableHead>Available colors</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
@@ -222,9 +227,6 @@ export default async function AdminStoreDetailPage({
               <TableBody>
                 {products && products.length > 0 ? (
                   products.map((product) => {
-                    const variantCount = Array.isArray(product.variants)
-                      ? product.variants.length
-                      : 0;
                     return (
                       <TableRow
                         key={product.id}
@@ -254,7 +256,7 @@ export default async function AdminStoreDetailPage({
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>{variantCount} variants</TableCell>
+                        <TableCell><StoreProductColorCount product={product} /></TableCell>
                         <TableCell>
                           <ProductPublishToggle
                             productId={product.id}
@@ -294,7 +296,7 @@ export default async function AdminStoreDetailPage({
                   <TableHead>Customer</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Platform Fee</TableHead>
+                  <TableHead className="text-right">Platform Retained</TableHead>
                   <TableHead className="text-right">Owner Earnings</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>

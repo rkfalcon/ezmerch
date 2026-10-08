@@ -1,3 +1,4 @@
+import { recordPayoutReadiness } from "@/lib/earnings/service";
 import { onboardingStore } from "@/lib/onboarding/store";
 import { stripeReady } from "@/lib/onboarding/validation";
 import { stripe } from "@/lib/stripe";
@@ -7,6 +8,7 @@ export async function GET() {
     if (!store?.stripe_account_id)
       return Response.json({ ready: false, started: false });
     const account = await stripe.accounts.retrieve(store.stripe_account_id);
+    await recordPayoutReadiness(account);
     return Response.json({
       ready: stripeReady(account),
       started: true,

@@ -1,3 +1,13 @@
+import { fulfillmentConnection } from "../printful-connection";
+import {loadQualityPolicy} from "./quality-policy-store";
+import { templateColors } from "./color-limit";
+import { copyMockupChunk } from "./mockup-copy";
+import { prepareEmbroidery } from "./embroidery-artwork";
+import { effectiveTemplate, planArtwork } from "./artwork-plan";
+import {
+  PrintQualityError,
+  type LogoQuality,
+} from "./print-quality";
 import { generationStatePatch } from "./state-patch";
 import { lineupFetch } from "./request";
 import { compactGenerationState } from "./generation-state";
@@ -54,7 +64,7 @@ export function isPrintfulAsset(url: string): boolean {
   }
 }
 
-async function downloadMockup(url: string): Promise<Buffer> {
+export async function downloadMockup(url: string): Promise<Buffer> {
   if (!isPrintfulAsset(url))
     throw new Error("Printful returned an unrecognized image host");
   const response = await lineupFetch(url, {
@@ -148,7 +158,8 @@ async function publishReadyBatches(
   client: PrintfulClient,
   job: GenerationJob,
 ): Promise<boolean> {
-  const { state, template_snapshot: template } = job;
+  const { state } = job;
+  const template = effectiveTemplate(job);
   const batches = state.batches!;
   const variants = state.variants!;
   const syncProducts = batches.flatMap((b) => b.syncProducts ?? []);
@@ -189,6 +200,7 @@ async function publishReadyBatches(
       },
     );
     if (error) throw error;
+    console.info(complete ? "lineup.completed" : "lineup.colors_published", { jobId: job.id, generation: job.generation_id, variants: ready.length, firstPublication: !state.publishedVariantCount });
     if (!complete) {
       state.publishedVariantCount = ready.length;
       await saveStep(db, job, state);
@@ -236,7 +248,7 @@ export async function advanceJob(
   client: PrintfulClient,
   job: GenerationJob,
 ): Promise<void> {
-  const template = job.template_snapshot;
+  const template = effectiveTemplate(job);
   const state = (job.state = compactGenerationState(job.state));
   originalStates.set(job, structuredClone(state));
   const generation = job.generation_id ?? job.id;
@@ -245,7 +257,8 @@ export async function advanceJob(
     const catalog = await client.product(productId);
     if (catalog.product.is_discontinued)
       throw new Error("This Printful product has been discontinued");
-    const variants = catalog.variants.filter((v) => v.in_stock !== false);
+    const selectedColors = templateColors(catalog.variants, template.enabled_colors);
+    const variants = catalog.variants.filter((v) => v.in_stock !== false && selectedColors.includes(v.color));
     if (!variants.length)
       throw new Error("No available variants for this product");
     variants.forEach((v) =>
@@ -273,6 +286,74 @@ export async function advanceJob(
     });
     return;
   }
+  if (state.embroideryLogoPath && !state.embroideryLogoPath.startsWith(`${job.store_id}/embroidery/`)) throw Error("Invalid embroidery artwork path");
+  // New approved uploads must pass all print areas before ANY preview publication or supplier sync.
+  if (job.logo_path?.includes("/logos/quality-") && !state.printQuality) {
+    if (!job.logo_path.startsWith(`${job.store_id}/`))
+      throw new Error("Invalid logo path");
+    const { data, error } = await db.storage
+      .from(bucket)
+      .download(`${job.logo_path}.json`);
+    if (error || !data)
+      throw new Error("Print quality record could not be loaded");
+    const metadata = JSON.parse(await data.text()) as LogoQuality;
+    const policy = await loadQualityPolicy(db);
+    let prepared = planArtwork(metadata, state.batches.map((b) => b.printfile), template, policy);
+    if (template.technique === "embroidery" && prepared.quality.status !== "ready") {
+      const source = await db.storage.from(bucket).download(job.logo_path);
+      if (source.error || !source.data) throw Error("Could not load original embroidery artwork");
+      const simplified = await prepareEmbroidery(db, job.store_id, Buffer.from(await source.data.arrayBuffer()), policy);
+      if (simplified.status === "waiting") { await saveStep(db, job, state, 15000); return; }
+      if (simplified.status === "ready") {
+        prepared = planArtwork(simplified.metadata, state.batches.map(b => b.printfile), template, policy);
+        if (state.embroideryLogoPath !== simplified.path) {
+          if (state.publishedVariantCount || state.batches.some(b => b.taskKey || b.images || b.syncProducts)) throw Error("Cannot replace artwork after supplier generation has started");
+          for (const batch of state.batches) delete batch.artworkUrl;
+          delete state.instantPreview;
+        }
+        state.embroideryLogoPath = simplified.path;
+      } else {
+        prepared.quality = {...prepared.quality, status:"review", message:simplified.reason};
+      }
+    }
+    state.artworkPlan = prepared.plan;
+    const quality = prepared.quality;
+    if (quality.status === "review") {
+      const { data: logo, error: logoError } = await db.storage.from(bucket).download(template.technique === "embroidery" && state.embroideryLogoPath ? state.embroideryLogoPath : job.logo_path);
+      if (logoError || !logo) throw new Error("Could not load artwork for VeryMerch review");
+      const bytes = Buffer.from(await logo.arrayBuffer());
+      quality.proofs = [];
+      for (const area of [...new Map(state.batches.map(b => [b.printfile.printfile_id, b.printfile])).values()]) {
+        const artwork = await renderArtwork(bytes, area.width, area.height, prepared.plan.scale, prepared.plan.placement);
+        const url = await upload(db, `${job.store_id}/${generation}/artwork-${area.printfile_id}.png`, artwork, "image/png");
+        quality.proofs.push({ id: area.printfile_id, url });
+        for (const batch of state.batches) if (batch.printfile.printfile_id === area.printfile_id) batch.artworkUrl = url;
+      }
+    }
+    if (quality.status !== "ready") {
+      // A held design needs a preview of the attempted placement, not the template default.
+      try {
+        const { data } = await db.storage.from(bucket).download(state.embroideryLogoPath ?? job.logo_path);
+        if (data) {
+          state.instantPreviewPlan = prepared.plan;
+          state.instantPreview = await instantPreview(db, client, state.productId,
+            state.batches[0].variantIds[0], { ...template, ...prepared.plan },
+            Buffer.from(await data.arrayBuffer()), job.store_id, generation);
+        }
+      } catch (error) { console.warn("Review placement preview unavailable", error); }
+    }
+    state.printQuality = quality;
+    if (state.printQuality.status !== "ready")
+      throw new PrintQualityError(state.printQuality);
+    await saveStep(db, job, state);
+    return;
+  }
+  if (
+    state.printQuality &&
+    state.printQuality.status !== "ready" &&
+    !state.printQuality.reviewedAt
+  )
+    throw new PrintQualityError(state.printQuality);
   if (!state.previewPlanned) {
     if (
       state.batches.every((b) => !b.taskKey && !b.images && !b.downloadedImages)
@@ -321,8 +402,9 @@ export async function advanceJob(
         throw new Error("Invalid logo path");
       const { data, error } = await db.storage
         .from(bucket)
-        .download(job.logo_path);
+        .download(template.technique === "embroidery" && state.embroideryLogoPath ? state.embroideryLogoPath : job.logo_path);
       if (error || !data) throw new Error("Logo unavailable");
+      state.instantPreviewPlan = { scale: Number(template.scale), placement: template.placement };
       state.instantPreview = await instantPreview(
         db,
         client,
@@ -361,7 +443,7 @@ export async function advanceJob(
         throw new Error("Upload this store’s logo to begin generation");
       const { data, error } = await db.storage
         .from(bucket)
-        .download(job.logo_path);
+        .download(template.technique === "embroidery" && state.embroideryLogoPath ? state.embroideryLogoPath : job.logo_path);
       if (error || !data)
         throw new Error("The saved store logo could not be loaded");
       const artwork = await renderArtwork(
@@ -395,6 +477,10 @@ export async function advanceJob(
         throw new Error("Printful did not return a mockup task");
       batch.taskKey = task.task_key;
       batch.taskStartedAt = new Date().toISOString();
+      if (client.mockupCooldownMs > 0) {
+        const { error } = await db.rpc("defer_lineup_mockup_slot", { p_delay_ms: client.mockupCooldownMs });
+        if (error) throw error;
+      }
       await saveStep(db, job, state, 15_000);
       return;
     }
@@ -414,30 +500,23 @@ export async function advanceJob(
     if (!result.mockups?.length)
       throw new Error("Printful completed without any mockup images");
     const images: MockupImage[] = batch.downloadedImages ?? [];
-    // Copy one image per lease so large style sets cannot outlive the worker.
-    const index = images.length;
-    const mockup = result.mockups[index];
-    if (mockup) {
+    // Bounded parallel copies reduce polling and state writes; save only complete chunks.
+    // Paths are deterministic, so retrying a partially uploaded chunk is harmless.
+    const start = images.length;
+    const copied = await copyMockupChunk(result.mockups, start, async (mockup, index) => {
       const bytes = await downloadMockup(mockup.mockup_url);
-      const url = await upload(
-        db,
-        `${job.store_id}/${generation}/mockup-${batch.assetKey ?? state.batches.indexOf(batch)}-${index}.jpg`,
-        bytes,
-        "image/jpeg",
-      );
-      images.push({
-        url,
-        variant_ids: batch.representatives
-          ? batch.representatives
-              .filter((r) => mockup.variant_ids.includes(r.id))
-              .flatMap((r) => r.variantIds)
-          : mockup.variant_ids,
-      });
-      batch.downloadedImages = images;
-      if (images.length < result.mockups.length) {
-        await saveStep(db, job, state);
-        return;
-      }
+      const url = await upload(db,
+        `${job.store_id}/${generation}/mockup-${batch.assetKey ?? state.batches!.indexOf(batch)}-${index}.jpg`,
+        bytes, "image/jpeg");
+      return { url, variant_ids: batch.representatives
+        ? batch.representatives.filter(r => mockup.variant_ids.includes(r.id)).flatMap(r => r.variantIds)
+        : mockup.variant_ids };
+    });
+    images.push(...copied);
+    batch.downloadedImages = images;
+    if (images.length < result.mockups.length) {
+      await saveStep(db, job, state);
+      return;
     }
     if (
       batch.variantIds.some(
@@ -456,7 +535,7 @@ export async function advanceJob(
   const chunk = state.variants.slice(chunkIndex * 100, (chunkIndex + 1) * 100);
   if (chunk.length) {
     // Printful caps a sync product at 100 variants. Each chunk gets a stable ID;
-    // all chunks still become one EZMerch product with catalog variant IDs intact.
+    // all chunks still become one VeryMerch product with catalog variant IDs intact.
     const externalId = `ezmerch-${generation}${chunkIndex ? `-${chunkIndex + 1}` : ""}`;
     const sync = await client.ensureSyncProduct(
       externalId,
@@ -510,22 +589,27 @@ export async function advanceJob(
   if (error) throw error;
 }
 
-export async function runLineupWorker(budgetMs = 40_000) {
+export async function runLineupWorker(budgetMs = 20_000) {
   if (process.env.BACKGROUND_JOBS_PAUSED === "true")
     return { processed: 0, paused: true };
   const db = createAdminClient(lineupFetch);
   const client = new PrintfulClient(lineupFetch);
   const started = Date.now();
   let processed = 0;
-  while (processed < 1 && Date.now() - started < budgetMs) {
+  // Sequential work only; stop claiming after four steps or the time budget.
+  while (processed < 4 && Date.now() - started < budgetMs) {
+    if ((await fulfillmentConnection()).paused) break;
     const { data, error } = await db.rpc("claim_lineup_job");
     if (error) throw error;
     const job = data?.[0] as GenerationJob | undefined;
-    // Yield immediately: cron will revisit pending work without busy polling.
+    // Yield immediately; the queue schedules the next due step, with cron recovery.
     if (!job) break;
     try {
+      const stepStarted = Date.now();
       await advanceJob(db, client, job);
+      console.info("lineup.step", { jobId: job.id, generation: job.generation_id, elapsedMs: Date.now() - stepStarted });
     } catch (error) {
+      const qualityHold = error instanceof PrintQualityError;
       const rateLimited =
         error instanceof PrintfulError && error.status === 429;
       const outOfStock =
@@ -558,7 +642,9 @@ export async function runLineupWorker(budgetMs = 40_000) {
         .update({
           state: compactGenerationState(job.state),
           status:
-            !rateLimited && !outOfStock && attempts >= 5 ? "failed" : "pending",
+            qualityHold || (!rateLimited && !outOfStock && attempts >= 5)
+              ? "failed"
+              : "pending",
           attempts,
           last_error: message.slice(0, 700),
           available_at: availableAt,

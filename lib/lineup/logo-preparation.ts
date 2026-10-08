@@ -1,18 +1,13 @@
 import sharp from "sharp";
 
 export async function prepareLogo(bytes: Buffer, removeBackground = true) {
-  const input = sharp(bytes, { limitInputPixels: 40_000_000 });
+  const input = sharp(bytes, { limitInputPixels: 25_000_000 });
   const meta = await input.metadata();
   if (!["png", "jpeg", "webp"].includes(meta.format ?? ""))
     throw new Error("Upload a PNG, JPG, or WebP logo.");
   const { data, info } = await input
     .rotate()
-    .resize({
-      width: 4096,
-      height: 4096,
-      fit: "inside",
-      withoutEnlargement: true,
-    })
+    .toColourspace("srgb")
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -82,7 +77,11 @@ export async function prepareLogo(bytes: Buffer, removeBackground = true) {
       );
   }
   const png = await sharp(data, { raw: info }).png().toBuffer();
-  const output = await sharp(png).trim().png().toBuffer();
+  const output = await sharp(png)
+    .trim()
+    .withIccProfile("srgb")
+    .png()
+    .toBuffer();
   const dimensions = await sharp(output).metadata();
   if (Math.max(dimensions.width ?? 0, dimensions.height ?? 0) < 1200)
     warnings.push(
